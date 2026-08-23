@@ -335,3 +335,11 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   Final check with a real (non-offscreen) launch: "XL Converter" window
   appears within 4s. dist/xl-converter-win-1.2.3-x86_64-portable.7z
   (58 MiB) is the working deliverable.
+- 2026-08-24 04:22 [Session B]: PNG lossy tooltips grounded in research
+  (owner request) - quality_png now explains max-quality semantics and
+  recommends 80-95 (man page 70-95 example, community "start at 80"),
+  65-80 (pngquant's own documented example range), below 60 (banding in
+  gradients per 2026 guides); lossless_png reworded to "8-bit palette
+  (up to 256 colors), alpha preserved" per pngquant README. Commit
+  bbacf ac. Portable rebuilt with venv_c (56 MiB) and re-verified: window
+  appears, tooltip source py_compile OK.
