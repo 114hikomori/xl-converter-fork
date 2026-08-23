@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -8,12 +9,13 @@ from PySide6.QtCore import (
 import data.task_status as task_status
 from data.constants import (
     IMAGE_MAGICK_PATH,
+    OXIPNG_PATH,
     ALLOWED_RESAMPLING,
 )
 from core.utils import clip
 from core.pathing import getUniqueTmpFilePath
 import core.metadata as metadata
-from core.convert import convert, getDecoder
+from core.convert import convert, getDecoder, runPNGPostProcessor
 from core.exceptions import CancellationException, GenericException, FileException
 
 # ------------------------------------------------------------
@@ -290,8 +292,13 @@ def _downscaleManualModes(params, mutex):
 #                           Public
 # ------------------------------------------------------------
 
-def decodeAndDownscale(params, ext, metadata_mode, mutex):
-    """Decode to PNG with downscaling support."""
+def decodeAndDownscale(params, ext, metadata_mode, mutex, png_post=None):
+    """Decode to PNG with downscaling support.
+
+    png_post - optional {"bin", "args"} for a post-processing pass
+    (oxipng/pngquant) applied to the resized image; "args" must not contain
+    an output flag pair (it is added here).
+    """
     params["enc"] = getDecoder(ext)
     params["args"] = metadata.getArgs(params["enc"], metadata_mode)
 
@@ -313,6 +320,29 @@ def decodeAndDownscale(params, ext, metadata_mode, mutex):
             os.remove(proxy_path)
         except OSError as err:
             raise FileException("D1", err)
+
+    # PNG post-processing pass (oxipng/pngquant)
+    if png_post is not None:
+        png_post["args"].extend(metadata.getArgs(png_post["bin"], metadata_mode))
+
+        with QMutexLocker(mutex):
+            post_tmp = getUniqueTmpFilePath(params["dst_dir"], "png")
+
+        out_flag = "--out" if png_post["bin"] == OXIPNG_PATH else "--output"
+
+        runPNGPostProcessor(png_post["bin"], [*png_post["args"], out_flag, post_tmp], params["dst"], delete_if_canceled=[post_tmp])
+
+        if not os.path.isfile(post_tmp):
+            raise FileException("D23", f"PNG post-processing failed ({os.path.basename(png_post['bin'])}).")
+
+        try:
+            os.replace(post_tmp, params["dst"])
+        except OSError as err:
+            try:
+                os.remove(post_tmp)
+            except OSError:
+                pass
+            raise FileException("D23", err)
 
 def downscale(params, mutex):
     """A wrapper for all downscaling methods. Keeps the same aspect ratio.

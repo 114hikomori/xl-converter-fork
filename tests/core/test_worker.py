@@ -9,6 +9,7 @@ from PySide6.QtTest import QSignalSpy
 from core.worker import Worker
 from core.proxy import Proxy
 from core.exceptions import FileException, GenericException, CancellationException
+from data.constants import OXIPNG_PATH, PNGQUANT_PATH
 
 @pytest.fixture
 def worker():
@@ -268,6 +269,7 @@ def test_setupConversion_downscaling_no_key_error(setupConversion_patches, worke
 def worker_convert_patches(worker):
     patches = {
         "runBinary": patch("core.worker.runBinary", return_value=("stdout", "stderr")),
+        "runPNGPostProcessor": patch("core.worker.runPNGPostProcessor", return_value=("stdout", "stderr")),
         "convert": patch("core.worker.convert"),
         "remove": patch("core.worker.os.remove"),
         "rename": patch("core.worker.os.rename"),
@@ -429,14 +431,58 @@ def test_convert_args_webp(quality, method, lossless, expected_args, worker_conv
 
     assert mocks["runBinary"].call_args[0][1] == expected_args
 
-def test_convert_args_png(worker_convert_patches):
+def test_convert_args_png_legacy(worker_convert_patches):
     worker, mocks = worker_convert_patches
     mocks["getDecoderArgs"].return_value = ["--test_arg=1"]
+    worker.settings["png_encoder"] = "Legacy (ImageMagick)"
 
     worker.convert()
 
     assert mocks["runBinary"].call_args[0][0] == mocks["getDecoder"].return_value
     assert mocks["runBinary"].call_args[0][1] == ["--test_arg=1"]
+    mocks["runPNGPostProcessor"].assert_not_called()
+
+def test_convert_args_png_oxipng(worker_convert_patches):
+    worker, mocks = worker_convert_patches
+    worker.settings["png_encoder"] = "Oxipng"
+    worker.params["lossless"] = True
+
+    worker.convert()
+
+    mocks["runPNGPostProcessor"].assert_called_once()
+    post_call = mocks["runPNGPostProcessor"].call_args[0]
+    assert post_call[0] == OXIPNG_PATH
+    assert post_call[1] == ["-o", "2", "-t", "4"]
+    assert post_call[2] == worker.item_abs_path
+    mocks["runBinary"].assert_not_called()
+
+def test_convert_args_png_pngquant(worker_convert_patches):
+    worker, mocks = worker_convert_patches
+    worker.settings["png_encoder"] = "Oxipng"
+    worker.params["lossless"] = False
+    worker.params["quality"] = 80
+
+    worker.convert()
+
+    mocks["runPNGPostProcessor"].assert_called_once()
+    post_call = mocks["runPNGPostProcessor"].call_args[0]
+    assert post_call[0] == PNGQUANT_PATH
+    assert post_call[1] == ["--quality=0-80"]
+    assert post_call[2] == worker.item_abs_path
+
+def test_convert_args_png_non_png_source_decodes_first(worker_convert_patches):
+    worker, mocks = worker_convert_patches
+    worker.settings["png_encoder"] = "Oxipng"
+    worker.params["lossless"] = True
+    worker.item_ext = "webp"
+    mocks["getUniqueTmpFilePath"].return_value = "final/path/img.png"
+
+    worker.convert()
+
+    assert mocks["runBinary"].call_args[0][0] == mocks["getDecoder"].return_value
+    assert mocks["runBinary"].call_args[0][2] == "/path/to/images/image.png"
+    assert mocks["runBinary"].call_args[0][3] == "final/path/img.png"
+    assert mocks["runPNGPostProcessor"].call_args[0][2] == "final/path/img.png"
 
 def test_convert_args_unknown(worker_convert_patches):
     worker, mocks = worker_convert_patches
@@ -482,7 +528,21 @@ def test_convert_downscale_png(worker_convert_patches):
         worker.item_ext,
         worker.params["misc"]["keep_metadata"],
         worker.mutex,
+        None,
     )
+
+def test_convert_downscale_png_post(worker_convert_patches):
+    worker, mocks = worker_convert_patches
+    worker.params["format"] = "PNG"
+    worker.settings["png_encoder"] = "Oxipng"
+    worker.params["lossless"] = True
+    worker.params["downscaling"]["enabled"] = True
+
+    worker.convert()
+
+    mocks["decodeAndDownscale"].assert_called_once()
+    post_arg = mocks["decodeAndDownscale"].call_args[0][4]
+    assert post_arg == {"bin": OXIPNG_PATH, "args": ["-o", "2", "-t", "4"]}
 
 def test_convert_jpeg_xl_intelligent_effort_e9_smaller(worker_convert_patches):
     worker, mocks = worker_convert_patches

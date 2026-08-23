@@ -226,3 +226,8 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
 - 2026-08-23 23:07 [Session A]: Phase 1 (A-P2a) code done + committed —
   `data/constants.py`, `core/metadata.py` (+ checkpoint lines in both plan
   docs).
+- 2026-08-23 23:21 [Session A]: Phase 2 (A-P2b) done + committed — two-stage
+  PNG pipeline live behind `png_encoder` setting; `core/convert.py`,
+  `core/worker.py`, `core/downscale.py`, `tests/core/test_worker.py`.
+  Deviation note: pulled the affected test updates into this phase (instead
+  of A-P5) to keep the tree green at every commit.

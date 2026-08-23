@@ -66,6 +66,45 @@ def runBinary(
 
     return (stdout, stderr)
 
+def runPNGPostProcessor(
+    bin_path: str,
+    args: list[str],
+    src_path: str,
+    delete_if_canceled: list[str] = [],
+) -> (str, str):
+    """Runs oxipng/pngquant on an existing PNG.
+
+    The output path travels inside args as an option flag pair
+    (--out <path> / --output <path>), never as a positional argument.
+    args must be pre-tokenized (paths are not space-safe through parseArgs).
+
+    Args:
+        bin_path: absolute path to oxipng or pngquant
+        args: pre-tokenized option tokens, output flag pair included
+        src_path: absolute path to the source PNG
+        delete_if_canceled: files to remove if the task gets canceled
+
+    Returns:
+        (stdout, stderr)
+
+    Raises:
+        CancellationException: if task_status is canceled
+    """
+    stdout, stderr = runProcess2(bin_path, *args, src_path)
+
+    if task_status.wasCanceled():
+        for file in delete_if_canceled:
+            if not os.path.isfile(file):
+                continue
+
+            try:
+                os.remove(file)
+            except OSError as e:
+                logging.error(f"[runPNGPostProcessor] Failed to remove tmp file. {e}")
+        raise CancellationException()
+
+    return (stdout, stderr)
+
 def runJPEGtran(
     args: list[str],
     src_path: str,

@@ -300,3 +300,13 @@ rewrite this section, only add to it)
   `PNGQUANT_PATH` Wipe branch (`["--strip"]`) added to
   `core/metadata.py:getArgs()`; py_compile OK; pytest/PySide6 not installed
   on this machine (deferred to A-P5).
+- 2026-08-23 23:21 [Session A]: Phase 2 step 3–4 (A-P2b) done — two-stage
+  pipeline in `Worker.convert` `case "PNG"` (oxipng lossless `-o 2 -t N`
+  default, pngquant `--quality=0-q` when lossless=False, `.get("png_encoder",
+  "Legacy (ImageMagick)")` gate), new `runPNGPostProcessor` in
+  `core/convert.py`, post-pass hook at end of `decodeAndDownscale`
+  (post→tmp→replace, code D23); custom-args branches `oxipng_args`/
+  `pngquant_args` wired via `.get`. Existing PNG tests updated (legacy split
+  into legacy/oxipng/pngquant/non-png-source + downscale png_post case);
+  py_compile OK on all four files. Real-binary smoke test deferred (no
+  binaries installed).

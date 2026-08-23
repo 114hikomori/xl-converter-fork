@@ -22,12 +22,13 @@ from data.constants import (
     JPEG_ALIASES,
     AVIFENC_PATH,
     IMAGE_MAGICK_PATH,
-    OXIPNG_PATH
+    OXIPNG_PATH,
+    PNGQUANT_PATH
 )
 
 from core.proxy import Proxy
 from core.pathing import getUniqueFilePath, getExtension, getOutputDir, getUniqueTmpFilePath, removeFile
-from core.convert import convert, getDecoder, getDecoderArgs, getExtensionJxl, runBinary, cleanUp
+from core.convert import convert, getDecoder, getDecoderArgs, getExtensionJxl, parseArgs, runBinary, runPNGPostProcessor, cleanUp
 from core.downscale import downscale, decodeAndDownscale
 import core.metadata as metadata
 import data.task_status as task_status
@@ -246,6 +247,8 @@ class Worker(QRunnable):
     def convert(self):
         args = []
         encoder = None
+        png_stage_a = None   # (decoder_path, decoder_args) - decode pass for non-PNG sources
+        png_stage_b = None   # oxipng/pngquant option tokens, without the output flag pair
 
         # Prepare args
         match self.params["format"]:
@@ -329,13 +332,28 @@ class Worker(QRunnable):
 
                 encoder = IMAGE_MAGICK_PATH
             case "PNG":
-                encoder = getDecoder(self.item_ext)
-                args = getDecoderArgs(encoder, self.available_threads)
+                if self.settings.get("png_encoder", "Legacy (ImageMagick)") == "Legacy (ImageMagick)":
+                    encoder = getDecoder(self.item_ext)
+                    args = getDecoderArgs(encoder, self.available_threads)
+                else:
+                    # Two-stage pipeline: decode to a raw PNG (skipped when the
+                    # source already is one), then optimize/quantize it.
+                    if self.params.get("lossless", True):
+                        encoder = OXIPNG_PATH
+                        png_stage_b = ["-o", "2", "-t", str(self.available_threads)]
+                    else:
+                        encoder = PNGQUANT_PATH
+                        png_stage_b = [f"--quality=0-{self.params.get('quality', 80)}"]
+
+                    if self.item_ext != "png":
+                        decoder = getDecoder(self.item_ext)
+                        png_stage_a = (decoder, getDecoderArgs(decoder, self.available_threads))
             case _:
                 raise GenericException("C0", f"Unknown format ({self.params['format']})")
 
         # Prepare metadata
-        args.extend(metadata.getArgs(encoder, self.params["misc"]["keep_metadata"], self.lossless_jpeg))
+        meta_args = png_stage_b if png_stage_b is not None else args
+        meta_args.extend(metadata.getArgs(encoder, self.params["misc"]["keep_metadata"], self.lossless_jpeg))
 
         # Custom arguments
         if self.settings["enable_custom_args"]:
@@ -351,6 +369,12 @@ class Worker(QRunnable):
             elif encoder == IMAGE_MAGICK_PATH:
                 if self.settings["im_args"]:
                     args.append(self.settings["im_args"])
+            elif encoder == OXIPNG_PATH:
+                if self.settings.get("oxipng_args"):
+                    meta_args.extend(parseArgs([self.settings["oxipng_args"]]))
+            elif encoder == PNGQUANT_PATH:
+                if self.settings.get("pngquant_args"):
+                    meta_args.extend(parseArgs([self.settings["pngquant_args"]]))
 
         # Convert & downscale
         if self.params["downscaling"]["enabled"]:
@@ -359,7 +383,8 @@ class Worker(QRunnable):
             self.scl_params["jxl_int_e"] = self.params["intelligent_effort"]
 
             if self.params["format"] == "PNG":
-                decodeAndDownscale(self.scl_params, self.item_ext, self.params["misc"]["keep_metadata"], self.mutex)
+                png_post = None if png_stage_b is None else {"bin": encoder, "args": list(png_stage_b)}
+                decodeAndDownscale(self.scl_params, self.item_ext, self.params["misc"]["keep_metadata"], self.mutex, png_post)
             else:
                 downscale(self.scl_params, self.mutex)
         else:   # No downscaling
@@ -384,14 +409,38 @@ class Worker(QRunnable):
                 except OSError as err:
                     raise FileException("C2", err)
             else:   # Regular conversion
-                stdout, stderr = runBinary(encoder, args, self.item_abs_path, self.output, args_after_input=(encoder == IMAGE_MAGICK_PATH))
-                if not os.path.isfile(self.output):
-                    if self.lossless_jpeg and "JPEG bitstream reconstruction data could not be created" in stderr:
-                        err_msg = 'The JPEG image could not be transcoded (unsupported type or too much tail data). Enabling the "Normalize" option may help. Set "Format / Mode" to "Lossless JPEG Transcoding" to use it.'
-                    else:
-                        err_msg = f"[{os.path.basename(encoder)}] {stderr}"
+                if png_stage_b is not None:
+                    # PNG two-stage pipeline
+                    tmp_raw = None
 
-                    raise FileException("C3", err_msg)
+                    if png_stage_a is not None:
+                        with QMutexLocker(self.mutex):
+                            tmp_raw = getUniqueTmpFilePath(self.output_dir, "png")
+
+                        runBinary(png_stage_a[0], png_stage_a[1], self.item_abs_path, tmp_raw, delete_if_canceled=[tmp_raw])
+                        png_src = tmp_raw
+                    else:
+                        png_src = self.item_abs_path
+
+                    png_stage_b.extend(["--out" if encoder == OXIPNG_PATH else "--output", self.output])
+
+                    try:
+                        stdout, stderr = runPNGPostProcessor(encoder, png_stage_b, png_src)
+                    finally:
+                        cleanUp([tmp_raw] if tmp_raw is not None else [])
+
+                    if not os.path.isfile(self.output):
+                        err_msg = f"[{os.path.basename(encoder)}] {stderr}"
+                        raise FileException("C3", err_msg)
+                else:
+                    stdout, stderr = runBinary(encoder, args, self.item_abs_path, self.output, args_after_input=(encoder == IMAGE_MAGICK_PATH))
+                    if not os.path.isfile(self.output):
+                        if self.lossless_jpeg and "JPEG bitstream reconstruction data could not be created" in stderr:
+                            err_msg = 'The JPEG image could not be transcoded (unsupported type or too much tail data). Enabling the "Normalize" option may help. Set "Format / Mode" to "Lossless JPEG Transcoding" to use it.'
+                        else:
+                            err_msg = f"[{os.path.basename(encoder)}] {stderr}"
+
+                        raise FileException("C3", err_msg)
 
     def runExifTool(self):
         # Apply metadata (ExifTool)
