@@ -276,3 +276,15 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   Packaging (Plan A Phase 4): LICENSE_3RD_PARTY pngquant entry added;
   Makefile/build-scripts for pngquant PENDING (needs verified download URLs
   + docker, unavailable this session).
+- 2026-08-24 00:58 [Session B]: Packaging PENDING closed - commit e0e09e0:
+  windows/pngquant.sh (wget+7z official prebuilt), linux/Dockerfile.pngquant,
+  macos/pngquant.sh, Makefile TOOLS+bins/dest wiring, README make targets.
+  URLs verified live on pngquant.org; zip layout inspected.
+- 2026-08-24 01:04 [Session B]: Functional smoke PENDING closed - real
+  binaries placed under bin/win/{pngquant,oxipng,imagemagick} (gitignored);
+  9/9 checks PASS through the app's own code paths: oxipng lossless,
+  pngquant lossy (218KB -> 65KB), jpg->png magick decode + post, metadata
+  branches, Worker-level Same Format end-to-end (resolution -> oxipng ->
+  final file) and jpg->LJT routing. Remaining honest gap: upstream
+  test_convert.py full suite still needs custom-built libjxl/libavif/
+  jpegli binaries (not officially distributed as matching builds).
