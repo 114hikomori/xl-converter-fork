@@ -258,3 +258,11 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
 - 2026-08-23 23:47 [Session A]: NOTE - earlier line said routes come from
   settings dict; corrected this session: they travel in worker PARAMS
   (output_tab_settings | modify_tab_settings merge in controller.py:197).
+- 2026-08-23 23:55 [Session A]: Phase 6 judged VERIFIED WITH CAVEATS (commit
+  7a46fe8; raw-format consumers audited safe: ThreadManager/RAM default
+  threads, worker side sees resolved format).
+- 2026-08-24 00:00 [Session A]: Phase 7 (B-S3) done + committed — new
+  tests/core/test_same_format.py (17 cases), worker runChecks resolution
+  tests (resolve/override/unroutable-skip), test_modify_tab Same Format
+  downscaling row, README "Fork Notes" section, misc/changelog.md fork
+  entry. py_compile OK all four test files.

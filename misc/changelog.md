@@ -1,3 +1,11 @@
+## Fork - Unreleased
+
+### Added
+
+- Add pngquant as the lossy PNG encoder and oxipng as the default lossless PNG post-processor ("PNG Encoder" setting; "Legacy (ImageMagick)" keeps the original behavior).
+- Add quality and lossless controls for the PNG format.
+- Add "Same Format" mode - re-encodes each file with the pipeline assigned to its extension, with a configurable JPEG route.
+
 ## 1.2.3 - 2025-10-02
 
 ### Added

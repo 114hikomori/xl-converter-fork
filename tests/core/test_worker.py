@@ -129,6 +129,36 @@ def test_runChecks(mock_conflicts, mock_isfile, worker):
     worker.runChecks()
     mock_conflicts.checkForConflicts.assert_called_once()
 
+@patch("core.worker.os.path.isfile", return_value=True)
+@patch("core.worker.conflicts")
+def test_runChecks_same_format_resolves_to_pipeline(mock_conflicts, mock_isfile, worker):
+    worker.item_ext = "webp"
+    worker.params["format"] = "Same Format"
+
+    worker.runChecks()
+
+    assert worker.params["format"] == "WebP"
+
+@patch("core.worker.os.path.isfile", return_value=True)
+@patch("core.worker.conflicts")
+def test_runChecks_same_format_route_override(mock_conflicts, mock_isfile, worker):
+    worker.item_ext = "jpg"
+    worker.params["format"] = "Same Format"
+    worker.params["same_format_routes"] = {"jpg": "Lossless JPEG Transcoding"}
+
+    worker.runChecks()
+
+    assert worker.params["format"] == "Lossless JPEG Transcoding"
+
+@patch("core.worker.os.path.isfile", return_value=True)
+def test_runChecks_same_format_skips_unroutable(mock_isfile, worker):
+    worker.item_ext = "bmp"
+    worker.params["format"] = "Same Format"
+
+    worker.runChecks()
+
+    assert worker.skip is True
+
 @pytest.fixture
 def setupConversion_patches():
     with (

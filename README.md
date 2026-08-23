@@ -33,6 +33,18 @@ Reduce the file size of your JPEG images by 16% - 22% with Lossless JPEG Transco
 
 Scale down images to resolution, percent, shortest (and longest) side, and megapixels.
 
+## Fork Notes
+
+This fork extends upstream with the following changes:
+
+#### Lossy & Optimized PNG
+
+The "PNG" format now runs **Oxipng** (lossless) or **pngquant** (lossy) on top of the decoded image. The encoder is selectable via Settings → Conversion → "PNG Encoder", together with the generic Quality slider and Lossless option in the Output tab. The original single-pass behavior remains available as "Legacy (ImageMagick)".
+
+#### Same Format Mode
+
+A new "Format / Mode" entry that re-encodes every file with the pipeline assigned to its extension - PNG stays PNG (lossy-capable), JPEG stays JPEG or becomes a reversible JPEG XL transcode via "JPEG Route", and WebP/AVIF/JPEG XL are re-encoded in place. Files without an assigned pipeline are skipped.
+
 ## Download
 
 [Official website](https://codepoems.eu/xl-converter)

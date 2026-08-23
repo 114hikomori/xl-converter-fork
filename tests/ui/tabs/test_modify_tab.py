@@ -167,6 +167,7 @@ def test_updateDownscalingWidgets_metadata(
     ("Lossless JPEG Transcoding", True, False),
     ("JPEG Reconstruction", True, False),
     ("Smallest Lossless", True, False),
+    ("Same Format", True, False),
     ("JPEG XL", True, True),
 ])
 def test_updateDownscalingWidgets_downscaling(
