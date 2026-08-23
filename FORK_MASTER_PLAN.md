@@ -309,3 +309,13 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   requires upstream's custom libavif build (sed-patched svt.sh) via MSYS2.
   Lesson recorded: check a project's CI release artifacts before declaring
   binaries unavailable.
+- 2026-08-24 02:22 [Session B]: Portable build PRODUCED - env_build venv
+  (requirements + PyInstaller 6.11.1 stock wheel, no custom bootloader);
+  `python build.py -b portable` ran clean via misc/main.spec; output
+  dist/xl-converter-win-1.2.3-x86_64-portable.7z (55 MiB, 378 MiB unpacked,
+  includes bin/ encoders + portable_user_data config). Smoke: bundled
+  xl-converter.exe launches and stays alive offscreen 10s. Deviations from
+  upstream release process: stock PyInstaller wheel instead of self-compiled
+  bootloader (VS2022), encoder binaries from official prebuilts instead of
+  MSYS2 builds, exiftool/libjxl/libavif versions newer-or-equal but not
+  byte-identical to upstream pins, SVT-AV1-PSY option absent.
