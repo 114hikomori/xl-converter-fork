@@ -288,3 +288,14 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   final file) and jpg->LJT routing. Remaining honest gap: upstream
   test_convert.py full suite still needs custom-built libjxl/libavif/
   jpegli binaries (not officially distributed as matching builds).
+- 2026-08-24 01:33 [Session B]: Functional suite gap CLOSED to its floor -
+  owner approved option A. Downloaded OFFICIAL prebuilts into bin/win/:
+  libjxl v0.11.1 static zip (cjxl/djxl/jxlinfo/cjpegli - earlier claim
+  "no prebuilts" was wrong, corrected) and exiftool 13.59 (exiftool.org
+  moved downloads to SourceForge; upstream pin 13.37 is 404 there).
+  test_convert.py (GUI integration, real conversions): **26 of 31 PASS**.
+  The only 5 failures are all AVIF-binary-dependent: test_avif,
+  test_avif_decode, test_avif_utf8_support, test_proxy (uses PNG->AVIF),
+  test_dependencies (asserts avifenc.exe exists). These require building
+  libavif with the SVT-AV1-PSY patch via MSYS2/docker per upstream
+  Makefile - not obtainable as prebuilt.
