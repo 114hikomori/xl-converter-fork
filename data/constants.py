@@ -31,6 +31,7 @@ IMAGE_MAGICK_PATH = "magick"
 AVIFENC_PATH = "avifenc"
 AVIFDEC_PATH = "avifdec"
 OXIPNG_PATH = "oxipng"
+PNGQUANT_PATH = "pngquant"
 EXIFTOOL_PATH = "exiftool"
 JPEGTRAN_PATH = "jpegtran"
 
@@ -45,6 +46,7 @@ if platform.system() == "Windows":
     AVIFENC_PATH = os.path.join(BASE_PATH, "libavif", "avifenc.exe")
     AVIFDEC_PATH = os.path.join(BASE_PATH, "libavif", "avifdec.exe")
     OXIPNG_PATH = os.path.join(BASE_PATH, "oxipng", "oxipng.exe")
+    PNGQUANT_PATH = os.path.join(BASE_PATH, "pngquant", "pngquant.exe")
     EXIFTOOL_PATH = os.path.join(BASE_PATH, "exiftool", "exiftool.exe")
     JPEGTRAN_PATH = os.path.join(BASE_PATH, "jpegtran", "jpegtran.exe")
 
@@ -63,6 +65,7 @@ elif platform.system() == "Linux":
     AVIFENC_PATH = f"{BASE_PATH}/avifenc"
     AVIFDEC_PATH = f"{BASE_PATH}/avifdec"
     OXIPNG_PATH = f"{BASE_PATH}/oxipng"
+    PNGQUANT_PATH = f"{BASE_PATH}/pngquant"
     JPEGTRAN_PATH = os.path.join(BASE_PATH, "jpegtran")
 
     if ConfigManager().getboolean("General", "portable_user_data", False):
@@ -82,6 +85,7 @@ elif platform.system() == "Darwin":
     AVIFENC_PATH = os.path.join(BASE_PATH, "libavif", "avifenc")
     AVIFDEC_PATH = os.path.join(BASE_PATH, "libavif", "avifdec")
     OXIPNG_PATH = os.path.join(BASE_PATH, "oxipng")
+    PNGQUANT_PATH = os.path.join(BASE_PATH, "pngquant")
     EXIFTOOL_PATH = os.path.join(BASE_PATH, "exiftool", "exiftool")
     JPEGTRAN_PATH = os.path.join(BASE_PATH, "jpegtran")
 

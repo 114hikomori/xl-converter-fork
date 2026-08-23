@@ -223,3 +223,6 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   judge each phase, no push). Both plan docs committed as baseline.
   Env note: python 3.12 present, NO pytest/PySide6 installed - decision
   deferred to Phase 4 (A-P5).
+- 2026-08-23 23:07 [Session A]: Phase 1 (A-P2a) code done + committed —
+  `data/constants.py`, `core/metadata.py` (+ checkpoint lines in both plan
+  docs).

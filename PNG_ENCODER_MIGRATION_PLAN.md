@@ -295,3 +295,8 @@ rewrite this section, only add to it)
   (GPL v3+ dual-license, same pattern as already-bundled PyInstaller/ExifTool);
   official pngquant prebuilts exist; flags `--out`/`--output` confirmed;
   metadata preserve-by-default confirmed; cross-tab signal needed.
+- 2026-08-23 23:06 [Session A]: A-P2a done (Phase 2 steps 1–2) —
+  `PNGQUANT_PATH` added to `data/constants.py` (fallback + win/linux/mac),
+  `PNGQUANT_PATH` Wipe branch (`["--strip"]`) added to
+  `core/metadata.py:getArgs()`; py_compile OK; pytest/PySide6 not installed
+  on this machine (deferred to A-P5).

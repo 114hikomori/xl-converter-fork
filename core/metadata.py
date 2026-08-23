@@ -8,7 +8,8 @@ from data.constants import (
     IMAGE_MAGICK_PATH,
     CJXL_PATH,
     AVIFENC_PATH,
-    OXIPNG_PATH
+    OXIPNG_PATH,
+    PNGQUANT_PATH
 )
 from core.process import runProcess, runProcessOutput
 from core.exceptions import GenericException, FileException
@@ -123,6 +124,8 @@ def getArgs(encoder, mode, jpg_to_jxl_lossless=False) -> list[str]:
                 return  ["--ignore-exif", "--ignore-xmp"]
             elif encoder == OXIPNG_PATH:
                 return ["--strip safe"]
+            elif encoder == PNGQUANT_PATH:
+                return ["--strip"]
             else:
                 return []   # DJXL, CJPEGLI, AVIFDEC - unavailable or undocumented
         case "Encoder - Preserve":
