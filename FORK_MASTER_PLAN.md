@@ -299,3 +299,13 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   test_dependencies (asserts avifenc.exe exists). These require building
   libavif with the SVT-AV1-PSY patch via MSYS2/docker per upstream
   Makefile - not obtainable as prebuilt.
+- 2026-08-24 01:52 [Session B]: FULL SUITE GREEN - 31/31 PASS. Owner pushed to
+  re-research; found libavif v1.3.0 release DOES attach CI artifacts
+  (windows-artifacts.zip) containing STATIC avifenc/avifdec with dav1d 1.5.1 +
+  aom 3.12.1 + libyuv (no SVT). Placed into bin/win/libavif/. All AVIF tests
+  pass on the default "AOM AV1" encoder; aom version 3.12.1 vs upstream pin
+  3.13.1 makes no difference for output-validity assertions. Remaining caveat
+  (no test covers it): the app's optional "SVT-AV1-PSY" AVIF encoder still
+  requires upstream's custom libavif build (sed-patched svt.sh) via MSYS2.
+  Lesson recorded: check a project's CI release artifacts before declaring
+  binaries unavailable.
