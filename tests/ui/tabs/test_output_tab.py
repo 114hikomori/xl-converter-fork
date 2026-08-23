@@ -160,6 +160,7 @@ def test_onFormatChange_lossless_toggled(app):
     ("Lossless JPEG Transcoding", ["effort", "jxl_verify", "jxl_normalize"]),
     ("JPEG Reconstruction", ["png_fallback"]),
     ("Smallest Lossless", ["smallest_lossless"]),
+    ("Same Format", ["quality", "effort", "lossless"]),
 ])
 def test_onFormatChange_visibility(app, file_format, visible_widgets):
     app.format_cmb.setCurrentText(file_format)
@@ -202,6 +203,24 @@ def test_onFormatChange_visibility(app, file_format, visible_widgets):
     assert app.jxl_verify_cb.isVisibleTo(app) == ("jxl_verify" in visible_widgets)
     assert app.jxl_normalize_enable_cb.isVisibleTo(app) == ("jxl_normalize" in visible_widgets)
     assert app.jxl_normalize_when_cmb.isVisibleTo(app) == ("jxl_normalize" in visible_widgets)
+
+def test_onFormatChange_same_format_route_visibility(app):
+    app.format_cmb.setCurrentText("Same Format")
+    assert app.sf_jpeg_route_l.isVisibleTo(app)
+    assert app.sf_jpeg_route_cmb.isVisibleTo(app)
+
+    app.format_cmb.setCurrentText("JPEG")
+    assert not app.sf_jpeg_route_l.isVisibleTo(app)
+    assert not app.sf_jpeg_route_cmb.isVisibleTo(app)
+
+def test_getSettings_same_format_routes(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_jpeg_route_cmb.setCurrentText("Lossless JPEG Transcoding")
+
+    routes = app.getSettings()["same_format_routes"]
+
+    assert routes["jpg"] == "Lossless JPEG Transcoding"
+    assert routes["jpeg"] == "Lossless JPEG Transcoding"
 
 @pytest.mark.parametrize("encoder", [
     ("AOM AV1"),

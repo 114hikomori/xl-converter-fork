@@ -246,3 +246,15 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   `pathing.getExtension` case "Same Format" -> None; modify_tab downscaling
   exclusion += "Same Format"; test_pathing row added. resolve() logic
   verified by isolated 12-assertion run; py_compile OK all five files.
+- 2026-08-23 23:55 [Session A]: Phase 5 judged VERIFIED (real-module runtime
+  check via stubbed import, 6 assertions) — commit d91618f.
+- 2026-08-23 23:55 [Session A]: Phase 6 (B-S2) done + committed — output_tab:
+  "Same Format" combo entry, JPEG Route row (tag same_format), quality/
+  effort/lossless visible for the mode, effort range 1..9/10, sf_* saved
+  vars (quality 80 / lossless True / route), getSettings emits
+  same_format_routes {jpg,jpeg}; worker hook switched to params.get (routes
+  flow via output_tab settings merge); tooltip key sf_jpeg_route; tests:
+  visibility row + route visibility + getSettings routes cases.
+- 2026-08-23 23:47 [Session A]: NOTE - earlier line said routes come from
+  settings dict; corrected this session: they travel in worker PARAMS
+  (output_tab_settings | modify_tab_settings merge in controller.py:197).

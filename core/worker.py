@@ -147,7 +147,7 @@ class Worker(QRunnable):
 
         # Resolve "Same Format" mode into a concrete pipeline
         if self.params["format"] == "Same Format":
-            resolved = same_format.resolve(self.item_ext, self.settings.get("same_format_routes"))
+            resolved = same_format.resolve(self.item_ext, self.params.get("same_format_routes"))
             if resolved is None:
                 self.skip = True
                 return
