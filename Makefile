@@ -25,7 +25,7 @@ else
 endif
 
 # Tool list
-TOOLS := libjxl libavif imagemagick libjpeg-turbo oxipng
+TOOLS := libjxl libavif imagemagick libjpeg-turbo oxipng pngquant
 
 # Tool layout
 bin_dir_linux := $(BIN_DIR)/linux
@@ -42,6 +42,8 @@ bins_linux_libjpeg-turbo := jpegtran
 dest_linux_libjpeg-turbo :=
 bins_linux_oxipng        := oxipng
 dest_linux_oxipng        :=
+bins_linux_pngquant      := pngquant
+dest_linux_pngquant      :=
 
 bins_win_libjxl          :=
 dest_win_libjxl          := libjxl
@@ -53,6 +55,8 @@ bins_win_libjpeg-turbo   := jpegtran
 dest_win_libjpeg-turbo   :=
 bins_win_oxipng          :=
 dest_win_oxipng          := oxipng
+bins_win_pngquant        :=
+dest_win_pngquant        := pngquant
 
 bins_macos_libjxl        := cjxl djxl jxlinfo cjpegli
 dest_macos_libjxl        :=
@@ -64,6 +68,8 @@ bins_macos_libjpeg-turbo := jpegtran
 dest_macos_libjpeg-turbo :=
 bins_macos_oxipng        :=
 dest_macos_oxipng        := oxipng
+bins_macos_pngquant      :=
+dest_macos_pngquant      := pngquant
 
 # Help
 .PHONY: help

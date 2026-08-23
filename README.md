@@ -111,6 +111,7 @@ Run each target individually; each has additional requirements:
 - `make imagemagick`
 - `make libjxl`
 - `make oxipng`
+- `make pngquant`
 - `make exiftool`
 
 Launch CMD, enter the project's directory, and setup a virtual environment:
@@ -262,6 +263,7 @@ Run each target individually:
 - `make libjxl`
 - `make libavif`
 - `make oxipng`
+- `make pngquant`
 - `make imagemagick`
 
 Create and activate a virtual environment:

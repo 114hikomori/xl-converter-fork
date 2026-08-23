@@ -1,0 +1,21 @@
+FROM ubuntu:22.04
+
+ARG PNGQUANT_VERSION="3.0.3"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY ./misc/build_scripts/linux/sources.list /etc/apt/sources.list
+RUN apt update && apt install -y \
+    curl \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN curl -L "https://pngquant.org/pngquant-linux.tar.bz2" -o pngquant.tar.bz2 && \
+    mkdir pq_out && \
+    tar -xjf pngquant.tar.bz2 -C pq_out && \
+    mkdir /src/bin && \
+    install -m755 "$(find pq_out -type f -name pngquant | head -n1)" /src/bin/pngquant
+
+WORKDIR /src/bin
+CMD ["/bin/bash"]
