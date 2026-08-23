@@ -322,3 +322,10 @@ rewrite this section, only add to it)
   test_settings_tab category lists + png widgets, test_signals +png row,
   test_main mock +onPNGEncoderChanged. py_compile OK all seven files.
   UI launch smoke deferred (no PySide6 installed).
+- 2026-08-24 00:27 [Session A]: Phase 4 (packaging, partial) + Phase 5 (tests)
+  done - LICENSE_3RD_PARTY.txt pngquant entry added (GPL v3+ dual per Phase 1
+  finding #1). Full unit suite executed in fresh env_dev venv: 944 passed /
+  0 failed (core 461, data 115, ui 368), including all new PNG pipeline and
+  Same Format cases. PENDING: misc/build_scripts/{windows,linux,macos}
+  pngquant fetch scripts + Makefile wiring (needs verified prebuilt URLs +
+  docker); root test_convert.py functional suite (needs real binaries).

@@ -476,13 +476,14 @@ def test_convert_args_png_oxipng(worker_convert_patches):
     worker, mocks = worker_convert_patches
     worker.settings["png_encoder"] = "Oxipng"
     worker.params["lossless"] = True
+    worker.output = "final/path/img.png"
 
     worker.convert()
 
     mocks["runPNGPostProcessor"].assert_called_once()
     post_call = mocks["runPNGPostProcessor"].call_args[0]
     assert post_call[0] == OXIPNG_PATH
-    assert post_call[1] == ["-o", "2", "-t", "4"]
+    assert post_call[1] == ["-o", "2", "-t", "4", "--out", "final/path/img.png"]
     assert post_call[2] == worker.item_abs_path
     mocks["runBinary"].assert_not_called()
 
@@ -491,13 +492,14 @@ def test_convert_args_png_pngquant(worker_convert_patches):
     worker.settings["png_encoder"] = "Oxipng"
     worker.params["lossless"] = False
     worker.params["quality"] = 80
+    worker.output = "final/path/img.png"
 
     worker.convert()
 
     mocks["runPNGPostProcessor"].assert_called_once()
     post_call = mocks["runPNGPostProcessor"].call_args[0]
     assert post_call[0] == PNGQUANT_PATH
-    assert post_call[1] == ["--quality=0-80"]
+    assert post_call[1] == ["--quality=0-80", "--output", "final/path/img.png"]
     assert post_call[2] == worker.item_abs_path
 
 def test_convert_args_png_non_png_source_decodes_first(worker_convert_patches):
@@ -510,7 +512,7 @@ def test_convert_args_png_non_png_source_decodes_first(worker_convert_patches):
     worker.convert()
 
     assert mocks["runBinary"].call_args[0][0] == mocks["getDecoder"].return_value
-    assert mocks["runBinary"].call_args[0][2] == "/path/to/images/image.png"
+    assert mocks["runBinary"].call_args[0][2] == normalizePath("/path/to/images/image.png")
     assert mocks["runBinary"].call_args[0][3] == "final/path/img.png"
     assert mocks["runPNGPostProcessor"].call_args[0][2] == "final/path/img.png"
 

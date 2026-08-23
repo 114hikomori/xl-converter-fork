@@ -266,3 +266,13 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   tests (resolve/override/unroutable-skip), test_modify_tab Same Format
   downscaling row, README "Fork Notes" section, misc/changelog.md fork
   entry. py_compile OK all four test files.
+- 2026-08-24 00:27 [Session A]: Phase 4 (A-P5) DONE - env_dev venv created
+  per README convention (gitignored), requirements + requirements_test
+  installed; full unit suite run staged (offscreen Qt): core 461 + data 115
+  + ui 368 = 944 passed / 0 failed. 4 test-side bugs fixed first (out-pair
+  in post-processor args assertions, Path backslash normalization, PNG
+  visibility row pre-dating fork behavior). Root test_convert.py functional
+  suite NOT runnable here (needs real encoder binaries) - PENDING.
+  Packaging (Plan A Phase 4): LICENSE_3RD_PARTY pngquant entry added;
+  Makefile/build-scripts for pngquant PENDING (needs verified download URLs
+  + docker, unavailable this session).

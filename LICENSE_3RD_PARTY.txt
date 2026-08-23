@@ -27,6 +27,10 @@ OxiPNG
 - License: MIT License
 - URL: https://github.com/shssoichiro/oxipng/blob/master/LICENSE
 
+pngquant
+- License: GNU General Public License v3 or later (with permission for commercial licensing from the author); inherited portions under the PNG reference (libpnm/libimagequant heritage) are permissive
+- URL: https://github.com/kornelski/pngquant/blob/master/COPYRIGHT
+
 ExifTool
 - License: Perl Artistic License
 - URL: https://exiftool.org/#license

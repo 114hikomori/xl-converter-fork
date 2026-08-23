@@ -156,7 +156,7 @@ def test_onFormatChange_lossless_toggled(app):
     ("AVIF", ["quality", "effort", "chroma_subsampling"]),
     ("WebP", ["quality", "effort", "lossless"]),
     ("JPEG", ["quality", "chroma_subsampling"]),
-    ("PNG", []),
+    ("PNG", ["quality", "lossless"]),
     ("Lossless JPEG Transcoding", ["effort", "jxl_verify", "jxl_normalize"]),
     ("JPEG Reconstruction", ["png_fallback"]),
     ("Smallest Lossless", ["smallest_lossless"]),
