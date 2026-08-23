@@ -319,3 +319,19 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   bootloader (VS2022), encoder binaries from official prebuilts instead of
   MSYS2 builds, exiftool/libjxl/libavif versions newer-or-equal but not
   byte-identical to upstream pins, SVT-AV1-PSY option absent.
+- 2026-08-24 03:48 [Session B]: Portable build FIXED and verified. Chain of
+  findings: (1) the exe the owner ran was `_pyinstaller\main\` build-scratch
+  copy without `_internal\` - workpath debris, not the deliverable; scratch
+  folder deleted. (2) The real dist build from PyInstaller 6.11.1 failed at
+  runtime: `ModuleNotFoundError: _pyi_rth_utils` - PyInstaller's
+  fake-modules collection silently breaks when the PyInstaller package lives
+  under the `[Github Project]` bracket path (4th distinct bracket-path
+  failure on this machine; reproduced with a minimal PySide6 build, both
+  6.11.1 and 6.22.2, clean-path venv works). (3) Rebuilt with venv_c
+  (bracket-free venv) + PyInstaller 6.22.2 - warn file clean. (4) Verification
+  note: QT_QPA_PLATFORM=offscreen windows are invisible to EnumWindows, and
+  an error dialog keeps the process "alive" - earlier alive-checks were
+  unreliable; faulthandler on a source run proved app.exec() was healthy.
+  Final check with a real (non-offscreen) launch: "XL Converter" window
+  appears within 4s. dist/xl-converter-win-1.2.3-x86_64-portable.7z
+  (58 MiB) is the working deliverable.
