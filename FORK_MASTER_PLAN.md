@@ -231,3 +231,8 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   `core/worker.py`, `core/downscale.py`, `tests/core/test_worker.py`.
   Deviation note: pulled the affected test updates into this phase (instead
   of A-P5) to keep the tree green at every commit.
+- 2026-08-23 23:40 [Session A]: Phase 3 (A-P3) done + committed — PNG
+  encoder setting + custom args UI, png_encoder_changed signal wiring,
+  OutputTab PNG quality/lossless visibility + saved vars, tooltips;
+  settings_tab.py, output_tab.py, main.py, tooltips.py, 3 test files.
+  Same deviation note as Phase 2: affected test fixtures updated in-phase.

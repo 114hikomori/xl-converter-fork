@@ -310,3 +310,15 @@ rewrite this section, only add to it)
   into legacy/oxipng/pngquant/non-png-source + downscale png_post case);
   py_compile OK on all four files. Real-binary smoke test deferred (no
   binaries installed).
+- 2026-08-23 23:40 [Session A]: Phase 3 (A-P3) done — settings_tab: PNG
+  Encoder combo (Oxipng / Legacy (ImageMagick)) + oxipng/pngquant custom-args
+  fields wired through widgets/layout/sizes/signals/tooltips/categories/
+  getSettings/reset; `png_encoder_changed` signal added and connected in
+  main.py to new OutputTab.onPNGEncoderChanged (live-hides quality/lossless
+  for PNG when legacy); output_tab: PNG shows quality+Lossless when non-
+  legacy, per-format saved vars png_quality (default 80) / png_lossless
+  (default True), PNG tooltips; tooltips.py keys png_encoder / quality_png /
+  lossless_png. Tests updated: test_output_tab fixture +png_encoder,
+  test_settings_tab category lists + png widgets, test_signals +png row,
+  test_main mock +onPNGEncoderChanged. py_compile OK all seven files.
+  UI launch smoke deferred (no PySide6 installed).

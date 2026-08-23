@@ -54,6 +54,7 @@ def test_changeCategory_visibility(category, button, app):
             "jpg_encoder_l", "jpg_encoder_cmb",
             "disable_progressive_jpegli_cb",
             "avif_encoder_l", "avif_encoder_cmb",
+            "png_encoder_l", "png_encoder_cmb",
             "avif_bit_depth_l", "avif_bit_depth_cmb",
             "avif_aom_iq_tune_cb",
             "keep_if_larger_cb",
@@ -78,6 +79,8 @@ def test_changeCategory_visibility(category, button, app):
             "cjxl_args_l", "cjxl_args_te",
             "cjpegli_args_l", "cjpegli_args_te",
             "im_args_l", "im_args_te",
+            "oxipng_args_l", "oxipng_args_te",
+            "pngquant_args_l", "pngquant_args_te",
             "processing_order_l", "processing_order_cmb",
             "start_logging_btn", "open_log_dir_btn", "wipe_log_dir_btn",
         ],
@@ -101,6 +104,7 @@ def test_changeCategory_visibility(category, button, app):
     ("sorting_toggled", "no_sorting_cb"),
     ("jxl_effort_10_toggled", "jxl_effort_10_cb"),
     ("avif_encoder_changed", "avif_encoder_cmb"),
+    ("png_encoder_changed", "png_encoder_cmb"),
 ])
 def test_signals(signal_attr, widget_attr, qtbot, app):
     with qtbot.waitSignal(getattr(app.signals, signal_attr), timeout=1000) as blocker:

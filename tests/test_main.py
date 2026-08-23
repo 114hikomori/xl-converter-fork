@@ -35,6 +35,7 @@ class MockOutputTab(MockTab):
         self.onJXLEffort10Enabled = MagicMock()
         self.onQualityPrecisionSnappingEnabled = MagicMock()
         self.onJPEGEncoderChanged = MagicMock()
+        self.onPNGEncoderChanged = MagicMock()
         self.onJXLLossyModularVisibleToggled = MagicMock()
         self.onJXLIntEffortVisibleToggled = MagicMock()
         self.isClearAfterConvChecked = MagicMock()

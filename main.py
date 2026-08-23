@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
         self.settings_tab.signals.jxl_lossy_modular_toggled.connect(self.output_tab.onJXLLossyModularVisibleToggled)
         self.settings_tab.signals.jxl_int_effort_toggled.connect(self.output_tab.onJXLIntEffortVisibleToggled)
         self.settings_tab.signals.avif_encoder_changed.connect(self.output_tab.onAVIFEncoderChanged)
+        self.settings_tab.signals.png_encoder_changed.connect(self.output_tab.onPNGEncoderChanged)
 
     def setupMisc(self) -> None:
         select_tab_sc = []

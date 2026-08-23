@@ -18,6 +18,7 @@ def app(qtbot):
                 "enable_jxl_effort_10": False,
                 "enable_quality_precision_snapping": False,
                 "jpg_encoder": "JPEGLI",
+                "png_encoder": "Oxipng",
                 "jxl_lossy_modular": False,
                 "jxl_int_effort": False,
                 "avif_encoder": "AOM AV1",

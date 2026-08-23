@@ -50,6 +50,7 @@ class Signals(QObject):
     jxl_lossy_modular_toggled = Signal(bool)
     jxl_int_effort_toggled = Signal(bool)
     avif_encoder_changed = Signal(str)
+    png_encoder_changed = Signal(str)
 
 class SettingsTab(QWidget):
     def __init__(self):
@@ -134,6 +135,8 @@ class SettingsTab(QWidget):
         self.avif_bit_depth_cmb = self.wm.addWidget("avif_bit_depth_cmb", ComboBox(("Auto", "12", "10", "8")))
         self.avif_encoder_l = self.wm.addWidget("avif_encoder_l", QLabel("AVIF Encoder"))
         self.avif_encoder_cmb = self.wm.addWidget("avif_encoder_cmb", ComboBox(("AOM AV1", "SVT-AV1-PSY")))
+        self.png_encoder_l = self.wm.addWidget("png_encoder_l", QLabel("PNG Encoder"))
+        self.png_encoder_cmb = self.wm.addWidget("png_encoder_cmb", ComboBox(("Oxipng", "Legacy (ImageMagick)")))
         # self.avif_aom_tune_l = self.wm.addWidget("avif_aom_tune_l", QLabel("AOM AV1 Tune"))
         # self.avif_aom_tune_cmb = self.wm.addWidget("avif_aom_tune_cmb", ComboBox(("SSIM", "IQ", "PSNR")))
         self.avif_aom_iq_tune_cb = self.wm.addWidget("avif_aom_iq_tune_cb", QCheckBox("AOM AV1 - Use IQ Tune"))
@@ -173,10 +176,16 @@ class SettingsTab(QWidget):
         self.cjxl_args_te = self.wm.addWidget("cjxl_args_te", QTextEdit())
         self.im_args_l = QLabel("ImageMagick\nWebP\nJPEG (libjpeg)")
         self.im_args_te = self.wm.addWidget("im_args_te", QTextEdit())
+        self.oxipng_args_l = QLabel("oxipng\nPNG (lossless)")
+        self.oxipng_args_te = self.wm.addWidget("oxipng_args_te", QTextEdit())
+        self.pngquant_args_l = QLabel("pngquant\nPNG (lossy)")
+        self.pngquant_args_te = self.wm.addWidget("pngquant_args_te", QTextEdit())
         self.avifenc_args_te.setAcceptRichText(False)
         self.cjpegli_args_te.setAcceptRichText(False)
         self.cjxl_args_te.setAcceptRichText(False)
         self.im_args_te.setAcceptRichText(False)
+        self.oxipng_args_te.setAcceptRichText(False)
+        self.pngquant_args_te.setAcceptRichText(False)
         self.processing_order_l = self.wm.addWidget("processing_order_l", QLabel("Processing Order"))
         self.processing_order_cmb = self.wm.addWidget("processing_order_cmb", ComboBox(("Random", "Sequential")))
         self.start_logging_btn = self.wm.addWidget("start_logging_btn", QPushButton("Start Logging"))
@@ -225,6 +234,8 @@ class SettingsTab(QWidget):
         self.settings_lt.addLayout(self.avif_bit_depth_hb)
         self.avif_encoder_hb = createQHBoxLayout(self.avif_encoder_l, self.avif_encoder_cmb)
         self.settings_lt.addLayout(self.avif_encoder_hb)
+        self.png_encoder_hb = createQHBoxLayout(self.png_encoder_l, self.png_encoder_cmb)
+        self.settings_lt.addLayout(self.png_encoder_hb)
         # self.avif_aom_tune_hb = createQHBoxLayout(self.avif_aom_tune_l, self.avif_aom_tune_cmb)
         # self.settings_lt.addLayout(self.avif_aom_tune_hb)
         self.settings_lt.addWidget(self.avif_aom_iq_tune_cb)
@@ -252,6 +263,8 @@ class SettingsTab(QWidget):
         self.settings_lt.addLayout(createQHBoxLayout(self.avifenc_args_l, self.avifenc_args_te))
         self.settings_lt.addLayout(createQHBoxLayout(self.cjpegli_args_l, self.cjpegli_args_te))
         self.settings_lt.addLayout(createQHBoxLayout(self.im_args_l, self.im_args_te))
+        self.settings_lt.addLayout(createQHBoxLayout(self.oxipng_args_l, self.oxipng_args_te))
+        self.settings_lt.addLayout(createQHBoxLayout(self.pngquant_args_l, self.pngquant_args_te))
         self.processing_order_hb = createQHBoxLayout(self.processing_order_l, self.processing_order_cmb)
         self.settings_lt.addLayout(self.processing_order_hb)
         self.settings_lt.addLayout(createQHBoxLayout(self.start_logging_btn, self.open_log_dir_btn, self.wipe_log_dir_btn))
@@ -271,12 +284,15 @@ class SettingsTab(QWidget):
             self.cjpegli_args_l,
             self.cjxl_args_l,
             self.im_args_l,
+            self.oxipng_args_l,
+            self.pngquant_args_l,
         ):
             label.setMinimumWidth(90)
 
         for hbox in (
             self.jpg_encoder_hb,
             self.avif_encoder_hb,
+            self.png_encoder_hb,
             self.avif_bit_depth_hb,
             self.play_sound_on_finish_vol_hb,
             self.theme_hb,
@@ -289,6 +305,7 @@ class SettingsTab(QWidget):
         for cmb in (
             self.jpg_encoder_cmb,
             self.avif_encoder_cmb,
+            self.png_encoder_cmb,
             self.avif_bit_depth_cmb,
             self.theme_cmb,
             self.ram_optimizer_cmb,
@@ -305,6 +322,7 @@ class SettingsTab(QWidget):
         self.custom_resampling_cb.toggled.connect(self.signals.custom_resampling_toggled.emit)
         self.quality_prec_snap_cb.toggled.connect(self.signals.quality_prec_snap_toggled)
         self.jpg_encoder_cmb.currentTextChanged.connect(self.signals.jpeg_encoder_changed)
+        self.png_encoder_cmb.currentTextChanged.connect(self.signals.png_encoder_changed)
         self.exiftool_reset_btn.clicked.connect(lambda checked=False: self.resetExifTool(reset_custom=False))
         self.start_logging_btn.clicked.connect(self.toggleLogging)
         self.open_log_dir_btn.clicked.connect(self.openLogsDir)
@@ -332,13 +350,14 @@ class SettingsTab(QWidget):
         setToolTip("play_sound_on_finish", self.play_sound_on_finish_cb)
         setToolTip("jxl_auto_lossless_jpeg", self.jxl_auto_lossless_jpeg_cb)
         setToolTip("jpeg_encoder", self.jpg_encoder_cmb)
+        setToolTip("png_encoder", self.png_encoder_cmb)
         setToolTip("progressive_jpegli", self.disable_progressive_jpegli_cb)
         setToolTip("copy_if_larger", self.copy_if_larger_cb)
         setToolTip("keep_if_larger", self.keep_if_larger_cb)
         setToolTip("jxl_effort_10", self.jxl_effort_10_cb)
         setToolTip("resample", self.custom_resampling_cb)
         setToolTip("exiftool_args", self.exiftool_wipe_te, self.exiftool_custom_te, self.exiftool_preserve_te, self.exiftool_unsafe_wipe_te)
-        setToolTip("encoder_args", self.avifenc_args_te, self.cjpegli_args_te, self.cjxl_args_te, self.im_args_te)
+        setToolTip("encoder_args", self.avifenc_args_te, self.cjpegli_args_te, self.cjxl_args_te, self.im_args_te, self.oxipng_args_te, self.pngquant_args_te)
         setToolTip("jxl_int_effort", self.jxl_int_effort_cb)
         setToolTip("jxl_lossy_modular", self.jxl_lossy_modular_cb)
         setToolTip("avif_encoder", self.avif_encoder_cmb)
@@ -370,6 +389,7 @@ class SettingsTab(QWidget):
                 "jpg_encoder_l", "jpg_encoder_cmb",
                 "disable_progressive_jpegli_cb",
                 "avif_encoder_l", "avif_encoder_cmb",
+                "png_encoder_l", "png_encoder_cmb",
                 "avif_bit_depth_l", "avif_bit_depth_cmb",
                 # "avif_aom_tune_l", "avif_aom_tune_cmb",
                 "avif_aom_iq_tune_cb",
@@ -395,6 +415,8 @@ class SettingsTab(QWidget):
                 "cjxl_args_l", "cjxl_args_te",
                 "cjpegli_args_l", "cjpegli_args_te",
                 "im_args_l", "im_args_te",
+                "oxipng_args_l", "oxipng_args_te",
+                "pngquant_args_l", "pngquant_args_te",
                 "processing_order_l", "processing_order_cmb",
                 "start_logging_btn", "open_log_dir_btn", "wipe_log_dir_btn",
             ],
@@ -421,6 +443,10 @@ class SettingsTab(QWidget):
         self.cjpegli_args_te.setEnabled(enabled)
         self.im_args_l.setEnabled(enabled)
         self.im_args_te.setEnabled(enabled)
+        self.oxipng_args_l.setEnabled(enabled)
+        self.oxipng_args_te.setEnabled(enabled)
+        self.pngquant_args_l.setEnabled(enabled)
+        self.pngquant_args_te.setEnabled(enabled)
 
     def onPlaySoundOnFinishVolumeToggled(self):
         enabled = self.play_sound_on_finish_cb.isChecked()
@@ -503,8 +529,11 @@ class SettingsTab(QWidget):
             "avifenc_args": self.avifenc_args_te.toPlainText(),
             "cjpegli_args": self.cjpegli_args_te.toPlainText(),
             "im_args": self.im_args_te.toPlainText(),
+            "oxipng_args": self.oxipng_args_te.toPlainText(),
+            "pngquant_args": self.pngquant_args_te.toPlainText(),
             "enable_quality_precision_snapping": self.quality_prec_snap_cb.isChecked(),
             "jpg_encoder": self.jpg_encoder_cmb.currentText(),
+            "png_encoder": self.png_encoder_cmb.currentText(),
             "jxl_auto_lossless_jpeg": self.jxl_auto_lossless_jpeg_cb.isChecked(),
             "ram_optimizer": self.ram_optimizer_cmb.currentText(),
             "ram_optimizer_rules": self.ram_optimizer_rules_te.toPlainText(),
@@ -553,6 +582,7 @@ class SettingsTab(QWidget):
         self.disable_progressive_jpegli_cb.setChecked(False)
         self.jpg_encoder_cmb.setCurrentIndex(0)
         self.avif_encoder_cmb.setCurrentIndex(0)
+        self.png_encoder_cmb.setCurrentIndex(0)
         self.avif_bit_depth_cmb.setCurrentIndex(0)
         self.avif_aom_iq_tune_cb.setChecked(False)
         self.keep_if_larger_cb.setChecked(False)
@@ -568,6 +598,8 @@ class SettingsTab(QWidget):
         self.cjpegli_args_te.clear()
         self.im_args_te.clear()
         self.avifenc_args_te.clear()
+        self.oxipng_args_te.clear()
+        self.pngquant_args_te.clear()
     
     def saveState(self, new_states: Optional[Dict] = None) -> None:
         if new_states is None or new_states != self.cached_states:

@@ -42,6 +42,7 @@ class OutputTab(QWidget):
         self.prev_format = None
         self.MAX_THREAD_COUNT = os.cpu_count() or 1
         self.jpg_encoder = settings["jpg_encoder"]
+        self.png_encoder = settings["png_encoder"]
         self.enable_jxl_effort_10 = settings["enable_jxl_effort_10"]
         self.jxl_lossy_modular_visible = settings["jxl_lossy_modular"]
         self.jxl_int_effort_visible = settings["jxl_int_effort"]
@@ -245,6 +246,9 @@ class OutputTab(QWidget):
                 setToolTip("lossless", self.lossless_cb)
             case "JPEG":
                 setToolTip("quality_jpeg", self.quality_sl, self.quality_sb)
+            case "PNG":
+                setToolTip("quality_png", self.quality_sl, self.quality_sb)
+                setToolTip("lossless_png", self.lossless_cb)
             case "Lossless JPEG Transcoding":
                 setToolTip("effort_jpeg_recomp", self.effort_sb)
 
@@ -326,11 +330,11 @@ class OutputTab(QWidget):
         self.prev_format = cur_format
 
         # Visible
-        self.wm.setVisibleByTag("quality_all", cur_format in ("JPEG XL", "AVIF", "WebP", "JPEG"))
+        self.wm.setVisibleByTag("quality_all", cur_format in ("JPEG XL", "AVIF", "WebP", "JPEG") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.int_effort_cb.setVisible(cur_format == "JPEG XL" and self.jxl_int_effort_visible)
         self.wm.setVisibleByTag("effort", cur_format in ("JPEG XL", "AVIF", "WebP", "Lossless JPEG Transcoding"))
         self.wm.setVisibleByTag("jxl_losssy_modular", cur_format == "JPEG XL" and self.jxl_lossy_modular_visible)
-        self.wm.setVisibleByTag("lossless", cur_format in ("JPEG XL", "WebP"))
+        self.wm.setVisibleByTag("lossless", cur_format in ("JPEG XL", "WebP") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.wm.setVisibleByTag("smallest_lossless", cur_format == "Smallest Lossless")
         self.chroma_subsampling_l.setVisible(cur_format in ("JPEG", "AVIF"))
         self.chroma_subsampling_jpg_cmb.setVisible(cur_format == "JPEG" and self.jpg_encoder == "libjpeg")
@@ -386,6 +390,13 @@ class OutputTab(QWidget):
         if self.format_cmb.currentText() == "JPEG":
             self.chroma_subsampling_jpg_cmb.setVisible(encoder == "libjpeg")
             self.chroma_subsampling_jpegli_cmb.setVisible(encoder == "JPEGLI")
+
+    def onPNGEncoderChanged(self, encoder: str) -> None:
+        self.png_encoder = encoder
+        if self.format_cmb.currentText() == "PNG":
+            show = encoder != "Legacy (ImageMagick)"
+            self.wm.setVisibleByTag("quality_all", show)
+            self.wm.setVisibleByTag("lossless", show)
 
     def _onJXLNormalizeToggled(self) -> None:
         self.jxl_normalize_when_cmb.setEnabled(self.jxl_normalize_enable_cb.isChecked())
@@ -448,6 +459,9 @@ class OutputTab(QWidget):
             case "WebP":
                 self.quality_sl.setValue(90)
                 self.effort_sb.setValue(6)
+            case "PNG":
+                self.quality_sl.setValue(80)
+                self.lossless_cb.setChecked(True)
             case "Lossless JPEG Transcoding":
                 self.effort_sb.setValue(7)
         
@@ -505,6 +519,9 @@ class OutputTab(QWidget):
                 self.wm.setVar("webp_lossless", self.lossless_cb.isChecked())
             case "JPEG":
                 self.wm.setVar("jpg_quality", self.quality_sl.value())
+            case "PNG":
+                self.wm.setVar("png_quality", self.quality_sl.value())
+                self.wm.setVar("png_lossless", self.lossless_cb.isChecked())
             case "Lossless JPEG Transcoding":
                 self.wm.setVar("jxl_lossless_jpeg_effort", self.effort_sb.value())
 
@@ -523,6 +540,9 @@ class OutputTab(QWidget):
                 self.wm.applyVar("webp_lossless", "lossless_cb", False)
             case "JPEG":
                 self.wm.applyVar("jpg_quality", "quality_sl", 90)
+            case "PNG":
+                self.wm.applyVar("png_quality", "quality_sl", 80)
+                self.wm.applyVar("png_lossless", "lossless_cb", True)
             case "Lossless JPEG Transcoding":
                 self.wm.applyVar("jxl_lossless_jpeg_effort", "effort_sb", 7)
 
