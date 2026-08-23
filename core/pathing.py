@@ -85,6 +85,8 @@ def getExtension(_format):
             return "jpg"
         case "Smallest Lossless":   # Handled in Worker
             return None
+        case "Same Format":   # Resolved in Worker.runChecks
+            return None
         case _:
             raise GenericException("PG0", f"No extension declared for {_format}")
 

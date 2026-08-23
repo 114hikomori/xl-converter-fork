@@ -236,3 +236,13 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   OutputTab PNG quality/lossless visibility + saved vars, tooltips;
   settings_tab.py, output_tab.py, main.py, tooltips.py, 3 test files.
   Same deviation note as Phase 2: affected test fixtures updated in-phase.
+- 2026-08-23 23:47 [Session A]: Phase 4 (A-P5) DEFERRED to session end —
+  pytest/PySide6 install (~200MB venv) postponed so the full A+B suite runs
+  once; flagged to owner in-session.
+- 2026-08-23 23:47 [Session A]: Phase 5 (B-S1) done + committed — new
+  `core/same_format.py` (DEFAULT_ROUTES incl. JPEG_ALIASES, ALLOWED_TARGETS,
+  resolve()); `Worker.runChecks` resolution hook (unroutable -> skip=True,
+  else params["format"] overwritten pre-conflicts/proxy/dispatch);
+  `pathing.getExtension` case "Same Format" -> None; modify_tab downscaling
+  exclusion += "Same Format"; test_pathing row added. resolve() logic
+  verified by isolated 12-assertion run; py_compile OK all five files.

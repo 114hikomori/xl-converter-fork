@@ -130,6 +130,7 @@ def test_getUniqueTmpFilePath_path_store_exists_and_isfile_true():
     ("JPEG", "jpg"),
     ("PNG", "png"),
     ("Smallest Lossless", None),
+    ("Same Format", None),
 ])
 def test_getExtension(file_format, extension):
     assert pathing.getExtension(file_format) == extension

@@ -34,6 +34,7 @@ import core.metadata as metadata
 import data.task_status as task_status
 from core.exceptions import CancellationException, GenericException, FileException
 import core.conflicts as conflicts
+import core.same_format as same_format
 from core.utils import getFreeSpaceLeft, remove
 from core.process import runProcessOutput
 import core.lossless_jpeg as lossless_jpeg
@@ -143,6 +144,15 @@ class Worker(QRunnable):
         # Input was moved / deleted
         if os.path.isfile(self.org_item_abs_path) == False:
             raise FileException("C0", "File not found")
+
+        # Resolve "Same Format" mode into a concrete pipeline
+        if self.params["format"] == "Same Format":
+            resolved = same_format.resolve(self.item_ext, self.settings.get("same_format_routes"))
+            if resolved is None:
+                self.skip = True
+                return
+
+            self.params["format"] = resolved
 
         # Compatibility
         conflicts.checkForConflicts(
