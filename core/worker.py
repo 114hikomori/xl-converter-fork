@@ -89,6 +89,7 @@ class Worker(QRunnable):
         self.skip = False
         self.skipped = False
         self.lossless_jpeg = False
+        self.png_lossy = False   # set True only by the pngquant (lossy) PNG pipeline
 
         # Misc.
         self.scl_params = None
@@ -354,6 +355,7 @@ class Worker(QRunnable):
                     else:
                         encoder = PNGQUANT_PATH
                         png_stage_b = [f"--quality=0-{self.params.get('quality', 80)}"]
+                        self.png_lossy = True
 
                     if self.item_ext != "png":
                         decoder = getDecoder(self.item_ext)
@@ -521,10 +523,14 @@ class Worker(QRunnable):
                     os.rename(self.output, self.final_output)
 
                 # Copy original
+                # PNG is excluded only while it runs a lossless pipeline (Legacy
+                # ImageMagick or Oxipng); lossy PNG (pngquant) is a genuine
+                # lossy re-encode and should be treated like JPEG/WebP/AVIF/JXL.
                 if (
                     self.settings["copy_if_larger"] and
                     os.path.getsize(self.org_item_abs_path) < os.path.getsize(self.final_output) and
-                    self.params["format"] not in ("Lossless JPEG Transcoding", "JPEG Reconstruction", "PNG") and
+                    self.params["format"] not in ("Lossless JPEG Transcoding", "JPEG Reconstruction") and
+                    (self.params["format"] != "PNG" or self.png_lossy) and
                     not os.path.samefile(self.org_item_abs_path, self.final_output)
                 ):
                     os.remove(self.final_output)

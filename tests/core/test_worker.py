@@ -716,7 +716,7 @@ def test_finishConversion_replace_edge_case_delete_original(delete_original_mode
     ("JPEG XL", [300_000, 300_000, 300_000], True, False),
     ("JPEG XL", [300_000, 300_000, 299_000], True, False),
     ("JPEG XL", [300_000, 300_000, 400_000], False, False),
-    ("PNG", [300_000, 300_000, 400_000], True, False),
+    ("PNG", [300_000, 300_000, 400_000], True, False),   # lossless PNG (png_lossy defaults to False) stays excluded
     ("Lossless JPEG Transcoding", [300_000, 300_000, 400_000], True, False),
     ("JPEG Reconstruction", [300_000, 300_000, 400_000], True, False),
 ])
@@ -733,6 +733,21 @@ def test_finishConversion_copy_if_larger(finishConversion_patches, file_format, 
     if expected_to_run:
         assert mocks["remove"].call_args[0][0] == mocks["getUniqueFilePath"].return_value
         assert mocks["copyfile"].call_args[0] == (worker.org_item_abs_path, worker.final_output)
+
+def test_finishConversion_copy_if_larger_lossy_png(finishConversion_patches):
+    """Lossy PNG (pngquant) is not the PNG exclusion - it should behave like other lossy formats."""
+    worker, mocks = finishConversion_patches
+    worker.params["format"] = "PNG"
+    worker.png_lossy = True
+    worker.settings["copy_if_larger"] = True
+    mocks["getsize"].side_effect = [300_000, 300_000, 400_000]
+
+    worker.finishConversion()
+
+    assert mocks["remove"].call_count == 1
+    assert mocks["copyfile"].call_count == 1
+    assert mocks["remove"].call_args[0][0] == mocks["getUniqueFilePath"].return_value
+    assert mocks["copyfile"].call_args[0] == (worker.org_item_abs_path, worker.final_output)
 
 @pytest.fixture
 def mock_exiftool_env(worker):

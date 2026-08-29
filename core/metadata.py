@@ -123,7 +123,7 @@ def getArgs(encoder, mode, jpg_to_jxl_lossless=False) -> list[str]:
             elif encoder == AVIFENC_PATH:
                 return  ["--ignore-exif", "--ignore-xmp"]
             elif encoder == OXIPNG_PATH:
-                return ["--strip safe"]
+                return ["--strip", "safe"]   # pre-tokenized: consumers may skip parseArgs (see core.convert.runPNGPostProcessor)
             elif encoder == PNGQUANT_PATH:
                 return ["--strip"]
             else:

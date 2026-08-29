@@ -74,7 +74,7 @@ Always - all sources will be normalized.""",
     "avif_encoder": "Encoder used for encoding AVIF images.\n\n- AOM AV1 - stable and feature rich. Best for preserving high-quality.\n\n- SVT-AV1-PSY - a fork of SVT-AV1 with perceptual enhancements.\n\nNote: Each encoder interprets quality values differently.",
     "avif_aom_iq_tune": "Uses IQ (image quality) tuning mode instead of SSIM.\n\nIQ is better for photographic or complex images, but worse for simple synthetic images.",
     "keep_if_larger": "Prevents \"Delete Original\" and \"Replace\" options (output tab) from deleting the original image if the result is larger",
-    "copy_if_larger": "If the processed image is larger than the original, the result is discarded, and the original is copied instead.\n\nExcluded: Lossless JPEG Transcoding, JPEG Reconstruction, PNG",
+    "copy_if_larger": "If the processed image is larger than the original, the result is discarded, and the original is copied instead.\n\nExcluded: Lossless JPEG Transcoding, JPEG Reconstruction, and lossless PNG (Legacy/Oxipng).\n\nApplies to lossy PNG (pngquant).",
     "jxl_effort_10": "Raises Effort limit from 9 to 10. Effort 10 is experimental and very slow.\n\n- Lossy: provides a very small visual improvement.\n\n- Lossless: lowers file size.\n\n- Lossless JPEG Transcoding: has a tendency to increase file size. Not recommended.",
     "resample": """Enables resampling algorithm selection in the Modify tab.
 
