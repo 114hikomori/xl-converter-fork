@@ -343,3 +343,24 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   (up to 256 colors), alpha preserved" per pngquant README. Commit
   bbacf ac. Portable rebuilt with venv_c (56 MiB) and re-verified: window
   appears, tooltip source py_compile OK.
+- 2026-08-31 [Session C]: Bug-fix commit e4162bb (PNG metadata duplication,
+  JXL/AVIF proxy staleness, JPEG-alias coverage) built + pushed. First
+  rebuild reused the default `env_build` (lives under the bracket path) -
+  reproduced the exact `_pyi_rth_utils` crash this file's 2026-08-24 03:48
+  entry already root-caused and fixed, because that fix (a bracket-free
+  venv) was never made a standing default - `env_build` itself is still the
+  broken location. Recreated a clean-path venv at `D:\xlc_build_venv_c`
+  (PyInstaller 6.22.2 + requirements.txt, same versions as the working
+  2026-08-24 fix) and rebuilt from it with cwd still at the repo root for
+  build.py's relative paths. Verified with a real (non-offscreen) launch via
+  `[System.Diagnostics.Process]::Start()`: "XL Converter" window title
+  confirmed, process responding. Also found and worked around a 6th
+  bracket-path failure mode this session: `Start-Process -FilePath` and the
+  `&` call operator both fail to resolve an exe under the bracket path
+  (wildcard misparse, same root cause as the existing cd/Out-File/Polars
+  findings) even with an absolute path and no relative-path involvement;
+  `[System.Diagnostics.Process]::Start()` is unaffected and is the reliable
+  way to launch/verify a build from here. `D:\xlc_build_venv_c` left in
+  place (not repo-tracked) for reuse by future sessions instead of
+  recreating it - see root `mcp-local-capabilities.md` for the cross-repo
+  note.
