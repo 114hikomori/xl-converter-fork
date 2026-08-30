@@ -22,6 +22,7 @@ from PySide6.QtCore import(
     QDir,
 )
 
+from data.constants import JPEG_ALIASES
 from core.utils import dictToList
 from ui.lib import WidgetManager
 from ui.lib.utils import setToolTip, isPathValidStr, createQHBoxLayout, blockSignals
@@ -305,8 +306,11 @@ class OutputTab(QWidget):
                 },
             "jxl_png_fallback": self.jxl_png_fallback_cb.isChecked(),
             "same_format_routes": {
-                "jpg": self.sf_jpeg_route_cmb.currentText(),
-                "jpeg": self.sf_jpeg_route_cmb.currentText(),
+                # One control governs the whole JPEG family (jpg, jpeg, jfif,
+                # jif, jpe) - must cover every JPEG_ALIASES entry, not just
+                # jpg/jpeg, or the route silently falls back to plain "JPEG"
+                # for the less-common aliases.
+                ext: self.sf_jpeg_route_cmb.currentText() for ext in JPEG_ALIASES
             },
         }
 

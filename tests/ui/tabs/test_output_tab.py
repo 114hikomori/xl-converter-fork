@@ -219,8 +219,14 @@ def test_getSettings_same_format_routes(app):
 
     routes = app.getSettings()["same_format_routes"]
 
+    # The single JPEG Route control must govern every JPEG_ALIASES entry,
+    # not just jpg/jpeg - regression test for aliases silently falling back
+    # to plain "JPEG" instead of the user's chosen route.
     assert routes["jpg"] == "Lossless JPEG Transcoding"
     assert routes["jpeg"] == "Lossless JPEG Transcoding"
+    assert routes["jfif"] == "Lossless JPEG Transcoding"
+    assert routes["jif"] == "Lossless JPEG Transcoding"
+    assert routes["jpe"] == "Lossless JPEG Transcoding"
 
 @pytest.mark.parametrize("encoder", [
     ("AOM AV1"),

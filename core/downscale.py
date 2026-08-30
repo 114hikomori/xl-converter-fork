@@ -296,8 +296,10 @@ def decodeAndDownscale(params, ext, metadata_mode, mutex, png_post=None):
     """Decode to PNG with downscaling support.
 
     png_post - optional {"bin", "args"} for a post-processing pass
-    (oxipng/pngquant) applied to the resized image; "args" must not contain
-    an output flag pair (it is added here).
+    (oxipng/pngquant) applied to the resized image; "args" must already
+    include any metadata flags (Worker.convert folds them into png_stage_b
+    before building png_post) and must not contain an output flag pair
+    (it is added here).
     """
     params["enc"] = getDecoder(ext)
     params["args"] = metadata.getArgs(params["enc"], metadata_mode)
@@ -313,6 +315,12 @@ def decodeAndDownscale(params, ext, metadata_mode, mutex, png_post=None):
         # Downscale
         params["src"] = proxy_path
         params["enc"] = IMAGE_MAGICK_PATH
+        # Recompute for the actual downscale encoder. params["args"] above was
+        # computed against the JXL/AVIF decoder (DJXL/avifdec), for which
+        # metadata.getArgs() always returns [] - left as-is, ImageMagick would
+        # silently downscale without its own metadata flags (e.g. "-strip"
+        # under "Encoder - Wipe" was skipped for this pass). Bug 3.
+        params["args"] = metadata.getArgs(params["enc"], metadata_mode)
         downscale(params, mutex)
 
         # Clean-up
@@ -322,9 +330,11 @@ def decodeAndDownscale(params, ext, metadata_mode, mutex, png_post=None):
             raise FileException("D1", err)
 
     # PNG post-processing pass (oxipng/pngquant)
+    # NOTE: png_post["args"] already includes metadata args - Worker.convert
+    # folds them into png_stage_b before this is ever built, so they must
+    # not be re-added here (previously caused double-added flags, e.g.
+    # "--strip safe --strip safe" under "Encoder - Wipe").
     if png_post is not None:
-        png_post["args"].extend(metadata.getArgs(png_post["bin"], metadata_mode))
-
         with QMutexLocker(mutex):
             post_tmp = getUniqueTmpFilePath(params["dst_dir"], "png")
 

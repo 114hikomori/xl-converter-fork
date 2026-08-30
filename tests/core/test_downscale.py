@@ -6,7 +6,7 @@ from PySide6.QtCore import QMutex
 
 import core.downscale as downscale
 from core.exceptions import CancellationException, FileException, GenericException
-from data.constants import IMAGE_MAGICK_PATH, ALLOWED_RESAMPLING
+from data.constants import IMAGE_MAGICK_PATH, OXIPNG_PATH, ALLOWED_RESAMPLING
 
 # ------------------------------------------------------------
 #                           Math
@@ -215,7 +215,14 @@ def test_decodeAndDownscale_imagemagick(mock_downscale, params_fixture):
 @patch("core.downscale.getUniqueTmpFilePath", return_value="path/to/proxy/image.png")
 @patch("core.downscale.convert")
 @patch("core.downscale.os.remove")
-def test_decodeAndDownscale_other(mock_getDecoder, mock_downscale,  mock_getUniqueTmpFilePath, mock_convert, mock_remove, params_fixture):
+def test_decodeAndDownscale_other(mock_remove, mock_convert, mock_getUniqueTmpFilePath, mock_downscale, mock_getArgs, mock_getDecoder, params_fixture):
+    # Param order matches actual mock.patch injection (bottom-up: nearest
+    # decorator first) - was previously misordered top-down, which silently
+    # bound params_fixture to a mock instead of the real fixture and shifted
+    # every mock_* name by one. Harmless here since these 3 assertions still
+    # checked *some* mock called once each, until the Bug 3 fix (below) made
+    # metadata.getArgs a legitimate 2 calls, which the misbound "mock_remove"
+    # (actually getArgs) then flagged. Reordered only - assertions unchanged.
     downscale.decodeAndDownscale(params_fixture, "jxl", "Encoder - Wipe", QMutex())
     mock_convert.assert_called_once()
     mock_downscale.assert_called_once()
@@ -233,6 +240,53 @@ def test_decodeAndDownscale_cleanup_failed(mock_getDecoder, mock_getArgs, mock_d
     
     assert exc_info.value.id == "D1"
     assert "Clean-up failed" in str(exc_info.value.msg)
+
+def test_decodeAndDownscale_proxy_recomputes_metadata_args_for_imagemagick(params_fixture):
+    """Bug 3 regression: the proxy-decode path (JXL/AVIF sources) must
+    recompute params["args"] for IMAGE_MAGICK_PATH after switching
+    params["enc"] to it - not keep the args computed against the original
+    JXL/AVIF decoder (metadata.getArgs always returns [] for those), or
+    ImageMagick's own metadata flags (e.g. "-strip" under "Encoder - Wipe")
+    get silently skipped during this downscale pass."""
+    def fake_getArgs(encoder, mode):
+        if encoder == IMAGE_MAGICK_PATH:
+            return ["-strip"]
+        return []   # DJXL/avifdec path
+
+    with (
+        patch("core.downscale.getDecoder", return_value="path/to/djxl"),
+        patch("core.downscale.metadata.getArgs", side_effect=fake_getArgs),
+        patch("core.downscale.downscale") as mock_downscale,
+        patch("core.downscale.getUniqueTmpFilePath", return_value="path/to/proxy/image.png"),
+        patch("core.downscale.convert"),
+        patch("core.downscale.os.remove"),
+    ):
+        downscale.decodeAndDownscale(params_fixture, "jxl", "Encoder - Wipe", QMutex())
+
+    mock_downscale.assert_called_once()
+    assert params_fixture["enc"] == IMAGE_MAGICK_PATH
+    assert params_fixture["args"] == ["-strip"]
+
+@patch("core.downscale.getDecoder", return_value=IMAGE_MAGICK_PATH)
+@patch("core.downscale.downscale")
+@patch("core.downscale.getUniqueTmpFilePath", return_value="path/to/post_tmp.png")
+@patch("core.downscale.runPNGPostProcessor")
+@patch("core.downscale.os.path.isfile", return_value=True)
+@patch("core.downscale.os.replace")
+def test_decodeAndDownscale_png_post_does_not_duplicate_metadata_args(
+    mock_replace, mock_isfile, mock_runPNGPostProcessor, mock_getUniqueTmpFilePath, mock_downscale, mock_getDecoder, params_fixture
+):
+    """png_post["args"] already carries metadata args (Worker.convert adds
+    them once, upstream, before building png_post) - decodeAndDownscale must
+    not add them again. Regression test for the double "--strip safe" bug."""
+    png_post = {"bin": OXIPNG_PATH, "args": ["-o", "2", "-t", "4", "--strip", "safe"]}
+
+    downscale.decodeAndDownscale(params_fixture, "png", "Encoder - Wipe", QMutex(), png_post)
+
+    mock_runPNGPostProcessor.assert_called_once()
+    called_args = mock_runPNGPostProcessor.call_args[0][1]
+    assert called_args.count("--strip") == 1
+    assert called_args == ["-o", "2", "-t", "4", "--strip", "safe", "--out", "path/to/post_tmp.png"]
 
 @patch("core.downscale.task_status.wasCanceled", return_value=True)
 def test_downscale_canceled(mock_wasCanceled, params_fixture):
