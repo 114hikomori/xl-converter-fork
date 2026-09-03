@@ -56,3 +56,19 @@
    - While verifying, found and fixed an unrelated pre-existing defect in `test_decodeAndDownscale_other`: its `@patch` parameter names didn't match the actual (bottom-up) mock injection order, so `params_fixture` was silently never the real fixture and every `mock_*` name pointed at the wrong mock. Reordered the parameter list to match actual injection order (confirmed against the correctly-ordered `test_decodeAndDownscale_png_post_does_not_duplicate_metadata_args` in the same file) - no assertions changed.
    - `TWINS:` searched `params["enc"]` reassignment sites and all `metadata.getArgs()` call sites project-wide - found 0 other sites with the same staleness pattern (one other reassignment, in `core/worker.py:393`, sets `args` from the same `encoder` in the same statement group and is immediately superseded when routed through `decodeAndDownscale()`, so it isn't exposed to this bug).
    - Verified via `python -m pytest tests/ -q` (976 tests passing).
+
+---
+
+## 3. Files/Areas Fully Reviewed (no bug pending - safe to skip in future passes)
+
+Read in full and reasoned through end-to-end; nothing left unexamined in these files as of the date listed. Partially-touched files (only specific functions inspected) are NOT listed here and should still be swept in full.
+
+- `core/downscale.py` - full file - 2026-08-30/31 (2 bugs found and fixed, see above).
+- `core/pathing.py` - full file (138 lines) - 2026-09-04. `getUniqueFilePath`'s first while-loop iteration re-checks the same already-known-existing path once before advancing `n` (harmless, wastes one `os.path.isfile` call, does not affect correctness - not logged as a bug). `isANSICompatible` is confirmed dead code (see Non-ANSI Path Handling finding above) but harmless to leave. All other functions (`getUniqueTmpFilePath`, `getExtension`, `getOutputDir`, `removeFile`, `UniquePathStore`) checked, no issues.
+- `core/conflicts.py` - full file (48 lines) - 2026-09-04. `checkForConflicts` (animation + multipage/webp conflict checks) - logic matches its docstring and `data/constants.py`'s `valid_routines`, no issues found.
+- `data/constants.py` - `JPEG_ALIASES` and the per-OS binary path block (`CJXL_PATH`/`CJPEGLI_PATH`/etc.) only - NOT a full-file review, rest of this file still needs a pass.
+- `ui/tabs/output_tab.py` - `getSettings()`, `_saveFormatVars`/`_loadFormatVars` only - NOT a full-file review, rest of this file still needs a pass.
+- `core/worker.py` - `runChecks()`, `convert()` only - NOT a full-file review; `run`, `setupConversion`, `runExifTool`, `finishConversion`, `postConversionRoutines`, `runDynamicRamOptimizer`, `smallestLossless`, `losslesslyTranscodeJPEG`, `reconstructJPEG` still need a pass.
+
+### Not yet touched at all (as of 2026-09-04)
+`core/controller.py`, `core/convert.py`, `core/exceptions.py`, `core/lossless_jpeg.py`, `core/metadata.py`, `core/proxy.py`, `core/ram_optimizer.py`, `core/same_format.py` (beyond the JPEG-alias fix above), `core/timestamps.py`, `core/utils.py`, `core/update_checker.py`, `data/cli_args.py`, `data/config_manager.py`, `data/items.py`, `data/logging_manager.py`, `data/process_manager.py`, `data/sounds.py`, `data/task_status.py`, `data/thread_manager.py`, `data/time_left.py`, `data/tooltips.py`, `data/utils.py`, all of `ui/dialogs/`, `ui/lib/`, `ui/widgets/`, `ui/theme/`, and the rest of `ui/tabs/`.
