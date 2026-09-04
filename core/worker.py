@@ -754,7 +754,13 @@ class Worker(QRunnable):
                 raise FileException(err_id, err_msg)
 
         if self.params["jxl_verify"]:
-            _verify()
+            try:
+                _verify()
+            except FileException:
+                if normalized_jpeg_path:
+                    remove(normalized_jpeg_path, exc_id="lossless_jpeg_8")
+                    normalized_jpeg_path = None
+                raise
         
         if normalized_jpeg_path:
             remove(normalized_jpeg_path, exc_id="lossless_jpeg_7")

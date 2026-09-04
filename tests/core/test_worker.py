@@ -1244,6 +1244,23 @@ def test_losslesslyTranscodeJPEG_normalize_always(worker_losslesslyTranscodeJPEG
     mocks["verifyJPEGXLReconstructionData"].assert_not_called()
     mocks["transcodeJPEGtoJPEGXL"].assert_called_once()
 
+def test_losslesslyTranscodeJPEG_normalize_always_verify_failed(worker_losslesslyTranscodeJPEG_patches):
+    worker, mocks, variables = worker_losslesslyTranscodeJPEG_patches
+    worker.params["jxl_normalize_enable"] = True
+    worker.params["jxl_normalize_when"] = "Always"
+    worker.params["jxl_verify"] = True
+    mocks["verifyJPEGXLReconstructionData"].return_value = (False, "", "Checksum mismatch")
+
+    with pytest.raises(FileException) as exc_info:
+        worker.losslesslyTranscodeJPEG()
+
+    assert exc_info.value.id == "lossless_jpeg_0"
+    # The normalized tmp JPEG must be cleaned up even though verification
+    # failed and raised before the trailing (happy-path) cleanup line ran.
+    mocks["remove"].assert_any_call(variables["output"], exc_id="lossless_jpeg_1")
+    mocks["remove"].assert_any_call(mocks["getUniqueTmpFilePath"].return_value, exc_id="lossless_jpeg_8")
+    assert mocks["remove"].call_count == 2
+
 def test_losslesslyTranscodeJPEG_normalize_failed(worker_losslesslyTranscodeJPEG_patches):
     worker, mocks, variables = worker_losslesslyTranscodeJPEG_patches
     worker.params["jxl_normalize_enable"] = True
