@@ -55,7 +55,7 @@ class Proxy():
             case "JPEG Reconstruction":
                 return False
             case _:
-                raise FileException("Proxy0", f"Unrecognized format ({src_ext})")
+                raise FileException("Proxy0", f"Unrecognized format ({_format})")
         
         return True
 
@@ -90,4 +90,5 @@ class Proxy():
                 os.remove(self.proxy_path)
             except OSError as e:
                 raise FileException("Proxy2", f"Failed to clean up proxy. {e}")
-        self.proxy_path = None
+            finally:
+                self.proxy_path = None

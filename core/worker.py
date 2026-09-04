@@ -474,7 +474,7 @@ class Worker(QRunnable):
         if self.proxy.proxyExists():
             try:
                 self.proxy.cleanup()
-            except OSError as err:
+            except FileException as err:
                 raise FileException("F0", f"Failed to delete proxy. {err}")
             self.item_abs_path = self.org_item_abs_path   # Redirect the source back to original file
         
