@@ -47,10 +47,10 @@ class ScrollArea(QScrollArea):
             requested_horizontal = self.horizontalScrollBar().value() - delta.x()
             requested_vertical = self.verticalScrollBar().value() - delta.y()
 
-            if not requested_horizontal <= 0 and not requested_horizontal > self.horizontalScrollBar().maximum() and self.enable_horizontal:
+            if not requested_horizontal < 0 and not requested_horizontal > self.horizontalScrollBar().maximum() and self.enable_horizontal:
                 self.horizontalScrollBar().setValue(requested_horizontal)
 
-            if not requested_vertical <= 0 and not requested_vertical > self.verticalScrollBar().maximum() and self.enable_vertical:
+            if not requested_vertical < 0 and not requested_vertical > self.verticalScrollBar().maximum() and self.enable_vertical:
                 self.verticalScrollBar().setValue(requested_vertical)
             
             self.last_position = event.position().toPoint()

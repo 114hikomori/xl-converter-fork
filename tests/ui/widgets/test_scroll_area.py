@@ -1,4 +1,4 @@
-from unittest.mock import patch, call
+from unittest.mock import patch, call, MagicMock
 
 import pytest
 from PySide6.QtWidgets import QApplication
@@ -57,3 +57,16 @@ def test_mouseMoveEvent(app):
     app.mouseMoveEvent(QMouseEvent(QMouseEvent.MouseMove, QPointF(0, 100), QCursor.pos(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
 
     assert app.last_position.y() == 100
+
+def test_mouseMoveEvent_can_reach_scroll_position_zero(app):
+    """Regression test: dragging must be able to bring the scrollbar to
+    exactly 0, not just stop one unit short of it."""
+    vbar = MagicMock()
+    vbar.value.return_value = 1
+    vbar.maximum.return_value = 100
+    app.verticalScrollBar = MagicMock(return_value=vbar)
+
+    app.mousePressEvent(QMouseEvent(QMouseEvent.MouseButtonPress, QPointF(0, 0), QCursor.pos(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    app.mouseMoveEvent(QMouseEvent(QMouseEvent.MouseMove, QPointF(0, 1), QCursor.pos(), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+
+    vbar.setValue.assert_called_once_with(0)
