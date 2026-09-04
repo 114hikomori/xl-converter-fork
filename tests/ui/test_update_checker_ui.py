@@ -338,3 +338,13 @@ def test_update_checker_run_happy_path(update_checker_object):
         assert update_checker_object.update_info is None
         assert update_checker_object.message_viewed == False
         mock_runner_run.assert_called_once()
+
+def test_update_checker_run_sets_prompt_on_update_only(update_checker_object):
+    update_checker_object.initialized = True
+    update_checker_object.runner = MagicMock()
+
+    update_checker_object.run(silent=True)
+    assert update_checker_object.prompt_on_update_only == True
+
+    update_checker_object.run(silent=False)
+    assert update_checker_object.prompt_on_update_only == False

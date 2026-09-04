@@ -182,6 +182,7 @@ class UpdateChecker(QObject):
         if not self.initialized:
             self._lazyInit()
 
+        self.prompt_on_update_only = silent
         self.update_info = None
         self.message_viewed = False
 
