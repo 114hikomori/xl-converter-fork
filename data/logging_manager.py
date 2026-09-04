@@ -61,6 +61,9 @@ class LoggingManager:   # Singleton
         if self.file_handler in self.root_logger.handlers:
             self.file_handler.close()
             self.root_logger.removeHandler(self.file_handler)
+        # Reset so _setupFileHandler() builds a fresh handler next time
+        # instead of reusing this now-closed one.
+        self.file_handler = None
         self.root_logger.setLevel(DEFAULT_LEVEL)
 
     def isLoggingToFile(self):
