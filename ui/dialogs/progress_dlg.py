@@ -22,8 +22,6 @@ class ProgressDialog(QObject):
         self.label_line_1_cached = None
         self.label_line_2_cached = None
 
-        self.is_processing = False
-
     def show(self):
         """Creates a new progress dialog and shows it. Call before setting any values."""
         if self.dlg is not None:
@@ -44,12 +42,10 @@ class ProgressDialog(QObject):
         self.dlg.setMinimumWidth(350)
         self.dlg.setMinimumHeight(115)
         self.dlg.show()
-        self.is_processing = True
         self.updatePosition()
 
     def _canceled(self):
         self.canceled.emit()
-        self.is_processing = False
 
     def finished(self):
         """Clean up progress dialog."""
@@ -108,7 +104,6 @@ class ProgressDialog(QObject):
     def updatePosition(self):
         """Follow the parent's position. Requires parent to be specified in the constructor."""
         if (
-            self.is_processing and
             self.parent and
             self.dlg is not None
         ):
