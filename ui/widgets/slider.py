@@ -36,12 +36,12 @@ class Slider(QSlider):
     def _setValueFromClick(self, e: QMouseEvent) -> None:
         click_pos = e.pos().x()
         total_width = self.width()
-        rel_value = (self.maximum() - self.minimum()) * click_pos / total_width
+        rel_value = self.minimum() + (self.maximum() - self.minimum()) * click_pos / total_width
 
         if self._getTickInterval() > 1:
             value = round(rel_value / self._getTickInterval()) * self._getTickInterval()
         elif self._getTickInterval() == 1:
-            value = round(rel_value) + 1    # round() is necessary; otherwise, the slider does not snap correctly.
+            value = round(rel_value)    # round() is necessary; otherwise, the slider does not snap correctly.
         else:
             value = rel_value
 
