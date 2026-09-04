@@ -72,6 +72,13 @@ class RAMOptimizer:
                     num, den = map(int, target.split("/"))
                     if min(num, den) < 1:
                         raise ValueError("Invalid target field. Numerator and denominator must be 1 or higher.")
+                    if num > den:
+                        # A fraction above 1 would *increase* the worker count past
+                        # used_thread_count, which can floor new_thread_count_per_worker
+                        # to 0 in run() (integer division) - a 0 thread count then
+                        # reaches encoder args (e.g. --num_threads=0). The optimizer
+                        # only ever reduces worker count, so reject it here instead.
+                        raise ValueError("Invalid target field. Fraction cannot exceed 1 (would increase worker count instead of reducing it).")
                 elif target != "1":
                     raise ValueError("Invalid target field. Must be either 1 or a fraction (string).")
 

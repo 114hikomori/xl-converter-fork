@@ -58,11 +58,20 @@ def test_setOptimizationRules():
     ('("all", 10, "0/1")', []),
     ('("all", 10, "0")', []),
     ('("unsupported", 10, "1/2")', []),
+    ('("all", 10, "3/2")', []),
 ])
 def test_parseOptimizationRules_results(rules_str, expected_dataclasses):
     parsed_rules = RAMOptimizer.parseOptimizationRules(rules_str)
     for rule in expected_dataclasses:
         assert rule in parsed_rules
+
+def test_parseOptimizationRules_target_exceeds_1_rejected(caplog):
+    # A fraction above 1 would increase worker count past used_thread_count,
+    # which can floor new_thread_count_per_worker to 0 in run().
+    caplog.set_level(logging.ERROR)
+    parsed_rules = RAMOptimizer.parseOptimizationRules('("all", 10, "3/2")')
+    assert parsed_rules == []
+    assert "cannot exceed 1" in caplog.text
 
 def test_setOptimizationRulesStr_rules_parsed(caplog):
     caplog.set_level(logging.INFO)
