@@ -219,3 +219,20 @@ def test_blockSignals_mixed():
         _object.blockSignals.assert_called_once_with(True)
 
     _object.blockSignals.assert_called_with(False)
+
+def test_blockSignals_unblocks_on_exception():
+    """Regression test: objects must still be unblocked even if the
+    with-block raises, and the original exception must still propagate."""
+    objects = [
+        MagicMock(spec=QObject),
+        MagicMock(spec=QObject),
+    ]
+
+    with pytest.raises(ValueError, match="boom"):
+        with utils.blockSignals(*objects):
+            for obj in objects:
+                obj.blockSignals.assert_called_once_with(True)
+            raise ValueError("boom")
+
+    for obj in objects:
+        obj.blockSignals.assert_called_with(False)
