@@ -199,11 +199,13 @@ class FileView(QTreeWidget):
                 if shift_pressed:
                     self.selectItemsAbove()
                 else:
+                    self.shift_start = None
                     self.moveIndexToTop()
             case Qt.Key_End:
                 if shift_pressed:
                     self.selectItemsBelow()
                 else:
+                    self.shift_start = None
                     self.moveIndexToBottom()
             case Qt.Key_PageUp:
                 self.movePage("up", shift_pressed)
@@ -223,6 +225,7 @@ class FileView(QTreeWidget):
         current_item = self.currentItem()
         root = self.invisibleRootItem()
         if current_item:
+            self.shift_start = current_item
             current_index = self.indexFromItem(current_item)
             last_item = root.child(root.childCount() - 1)
             last_index = self.indexFromItem(last_item)
@@ -239,6 +242,7 @@ class FileView(QTreeWidget):
         current_item = self.currentItem()
         root = self.invisibleRootItem()
         if current_item:
+            self.shift_start = current_item
             current_index = self.indexFromItem(current_item)
             first_item = root.child(0)
             first_index = self.indexFromItem(first_item)
