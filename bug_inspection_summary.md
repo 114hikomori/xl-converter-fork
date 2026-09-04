@@ -156,6 +156,12 @@
 - Added `test_blockSignals_unblocks_on_exception` to `tests/ui/lib/test_ui_utils.py` (asserts all previously-blocked objects are unblocked even when the `with` block raises, and that the original exception still propagates). `tests/ui/lib/test_ui_utils.py` - 22/22 passing (was 21). Full suite `python -m pytest tests/ -q` - 1008/1008 passing (was 1007).
 - `TWINS:` searched project-wide for other `@contextmanager`-decorated generators with a bare `yield` (no surrounding `try/finally`) performing any kind of setup/teardown pairing - `_sanitizeEnviron()` in this same file already uses `try/finally` correctly; no other `@contextmanager` function found anywhere else in the codebase.
 
+### Drag-to-Scroll Can Never Reach Exact Position 0 (`ui/widgets/scroll_area.py`)
+- **Location:** `ui/widgets/scroll_area.py` (`ScrollArea.mouseMoveEvent`).
+- **Inspection:** Read the full file (58 lines: `__init__`, `mousePressEvent`, `mouseReleaseEvent`, `mouseMoveEvent`). The click-and-drag-to-scroll logic computes `requested_horizontal`/`requested_vertical` from the current scrollbar value minus the drag delta, then only calls `setValue(...)` when `not requested_<axis> <= 0 and not requested_<axis> > <scrollbar>.maximum()`.
+- **Finding: Confirmed Bug.** `not requested_<axis> <= 0` is equivalent to `requested_<axis> > 0`, which excludes the valid boundary value `0` itself - the intended range is `[0, maximum]`, but the code only allows `(0, maximum]`. A valid Qt scrollbar's range starts at `0`, so this off-by-one boundary means drag-to-scroll can never bring the view to exactly the leftmost/topmost position: once the requested value would compute to `0` or below, the `setValue()` call is skipped entirely, and the scrollbar visibly "sticks" one unit short of the true start for the remainder of that drag gesture (only a wheel/keyboard/scrollbar-click interaction can reach the true `0`). The rate-limiting check above it (`UPDATE_RATE_LIMIT_MS`) and the delta-accumulation-across-skipped-events behavior were also checked and are correct - this is purely a boundary-comparison bug in the two `<=` operators.
+- **Fix applied:** Changed both `not requested_horizontal <= 0` / `not requested_vertical <= 0` to `not requested_<axis> < 0`, so the boundary value `0` is now a valid, reachable `setValue()` target while still correctly rejecting negative overshoot.
+
 ---
 
 ## 2. Actions Taken
