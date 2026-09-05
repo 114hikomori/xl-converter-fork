@@ -121,7 +121,7 @@ def test_applicableRuleExists_exists():
 
     with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", side_effect=(False, True)) as mock__doesRuleApply:
         assert RAMOptimizer.applicableRuleExists("", "") == True
-        mock__doesRuleApply.call_count == 2
+        assert mock__doesRuleApply.call_count == 2
         assert str(mock__doesRuleApply.call_args_list[0][0][0]) == str(RAMOptimizer.rules[0])
         assert str(mock__doesRuleApply.call_args_list[1][0][0]) == str(RAMOptimizer.rules[1])
 
@@ -141,8 +141,10 @@ def test__getMaxWorkerCount_apply_rule_1():
     ]
     RAMOptimizer.used_thread_count = 16
 
-    with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", side_effect=(False, True)):
-        RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 1
+    with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", return_value=True):
+        # Sorted by threshold desc, so the 14.0 rule (target "1") is evaluated
+        # first; res must reach its threshold for it to actually fire.
+        assert RAMOptimizer._getMaxWorkerCount(14.0, "JPEG XL", "") == 1
 
 def test__getMaxWorkerCount_apply_rule_fraction():
     RAMOptimizer.rules = [
@@ -152,8 +154,11 @@ def test__getMaxWorkerCount_apply_rule_fraction():
     ]
     RAMOptimizer.used_thread_count = 16
 
-    with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", side_effect=(False, False, True)):
-        RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 16 * 3 // 4
+    with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", side_effect=(False, True)):
+        # Sorted by threshold desc: 14.0 rule's own threshold isn't met at
+        # res=10.0 (auto-skipped, no call), so only 2 calls happen: 10.0 rule
+        # (skipped), then 8.0 rule (fires, target "3/4").
+        assert RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 16 * 3 // 4
 
 def test__getMaxWorkerCount_invalid_worker_count():
     RAMOptimizer.rules = [
@@ -162,7 +167,7 @@ def test__getMaxWorkerCount_invalid_worker_count():
     RAMOptimizer.used_thread_count = -1
 
     with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", return_value=True):
-        RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 1
+        assert RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 1
 
 def test__getMaxWorkerCount_div_error(caplog):
     RAMOptimizer.rules = [
@@ -171,7 +176,7 @@ def test__getMaxWorkerCount_div_error(caplog):
     RAMOptimizer.used_thread_count = 1
 
     with patch("core.ram_optimizer.RAMOptimizer._doesRuleApply", return_value=True):
-        RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 1
+        assert RAMOptimizer._getMaxWorkerCount(10.0, "JPEG XL", "") == 1
         assert "Applying rule failed" in caplog.records[0].message
 
 def test__getMaxWorkerCount_no_rules():

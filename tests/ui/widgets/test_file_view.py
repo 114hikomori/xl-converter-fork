@@ -82,9 +82,9 @@ def test_getItems(file_view):
 
 def test_disableSorting(file_view):
     file_view.disableSorting(True)
-    file_view.isSortingEnabled() == False
+    assert file_view.isSortingEnabled() == False
     file_view.disableSorting(False)
-    file_view.isSortingEnabled() == True
+    assert file_view.isSortingEnabled() == True
 
 def test_deleteSelected_one(file_view):
     file_view.addItems(get_sample_items(1))

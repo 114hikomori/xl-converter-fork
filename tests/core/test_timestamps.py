@@ -243,9 +243,9 @@ def test_applyTimestamps_windows_happy_path():
         mock_SetFileTime.assert_called_once()
         call_args = mock_SetFileTime.call_args[0]
         assert call_args[0] is mock_handle
-        mock_unix_to_filetime_ns.call_args_list[0] == 10**9
-        mock_unix_to_filetime_ns.call_args_list[1] == 11**9
-        mock_unix_to_filetime_ns.call_args_list[2] == 12**9
+        assert mock_unix_to_filetime_ns.call_args_list[0].args[0] == timestamps_obj.created
+        assert mock_unix_to_filetime_ns.call_args_list[1].args[0] == timestamps_obj.accessed
+        assert mock_unix_to_filetime_ns.call_args_list[2].args[0] == timestamps_obj.modified
 
 
 def test_applyTimestamps_windows_sad_path():
