@@ -14,16 +14,17 @@ def runProcess2(*cmd: str, cwd: str | None = None) -> (str, str):
 
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=_getStartupInfo(), cwd=cwd)
     ProcessManager.addProcess(process)
-    stdout, stderr = process.communicate()
+    raw_stdout, raw_stderr = process.communicate()
     ProcessManager.removeProcess(process)
 
+    stdout, stderr = "", ""    # Decode failures below degrade to "" (matches runProcessOutput).
     try:
-        if stdout:
-            stdout = stdout.decode("utf-8")
+        if raw_stdout:
+            stdout = raw_stdout.decode("utf-8")
             logging.info(f"[runProcess2] {stdout}")
 
-        if stderr:
-            stderr = stderr.decode("utf-8")
+        if raw_stderr:
+            stderr = raw_stderr.decode("utf-8")
             logging.info(f"[runProcess2] {stderr}")
     except Exception as err:
         logging.error(f"[runProcess2] Failed to decode process output. {err}")

@@ -93,3 +93,25 @@ def test_runProcess2_no_output():
         mock_popen.return_value.communicate.return_value = (None, None)
 
         assert process.runProcess2(["bin", "-arg", "sample.png"]) == ("", "")
+
+def test_runProcess2_decode_failure_returns_empty_string():
+    # stdout is valid UTF-8, stderr carries undecodable non-UTF-8 bytes:
+    # the broken stream must degrade to "" (never raw bytes), the valid
+    # one must still be decoded, and no exception may escape.
+    stdout = b"hello"
+    stderr = b"\xff\xfe\xfa"
+
+    with (
+        patch("core.process.subprocess.Popen", autospec=True) as mock_popen,
+        patch("core.process.logging.info"),
+        patch("core.process.logging.error") as mock_logging_error,
+        patch("data.process_manager.ProcessManager.addProcess"),
+        patch("data.process_manager.ProcessManager.removeProcess"),
+    ):
+        mock_popen.return_value.communicate.return_value = (stdout, stderr)
+
+        out, err = process.runProcess2(["bin", "-arg", "sample.png"])
+
+    assert (out, err) == ("hello", "")
+    assert all(isinstance(x, str) for x in (out, err))
+    mock_logging_error.assert_called_once()
