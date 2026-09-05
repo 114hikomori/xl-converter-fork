@@ -384,3 +384,27 @@ def test_onAVIFEncoderChanged_other_format(app):
 
     assert not app.chroma_subsampling_svt_av1_psy_cmb.isVisibleTo(app)
     assert not app.chroma_subsampling_aom_av1_cmb.isVisibleTo(app)
+
+def test_onJPEGEncoderChanged_updates_state_and_rereads_on_format_change(app):
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.chroma_subsampling_jpegli_cmb.isVisibleTo(app)
+    assert not app.chroma_subsampling_jpg_cmb.isVisibleTo(app)
+
+    # Encoder changed live while NOT on the JPEG format - state must be stored
+    app.format_cmb.setCurrentText("JPEG XL")
+    app.onJPEGEncoderChanged("libjpeg")
+    assert app.jpg_encoder == "libjpeg"
+
+    # Switching back must re-derive visibility from the updated value
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.chroma_subsampling_jpg_cmb.isVisibleTo(app)
+    assert not app.chroma_subsampling_jpegli_cmb.isVisibleTo(app)
+
+@pytest.mark.parametrize("fmt", ("PNG", "Same Format"))
+def test_resetToDefault_png_same_format_lossless_checked(app, fmt):
+    app.format_cmb.setCurrentText(fmt)
+    app.lossless_cb.setChecked(False)
+
+    app.resetToDefault()
+
+    assert app.lossless_cb.isChecked()

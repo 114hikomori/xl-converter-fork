@@ -404,6 +404,7 @@ class OutputTab(QWidget):
         self.wm.setEnabledByTag("jxl_losssy_modular", not lossless_checked)        
 
     def onJPEGEncoderChanged(self, encoder: str) -> None:
+        self.jpg_encoder = encoder
         if self.format_cmb.currentText() == "JPEG":
             self.chroma_subsampling_jpg_cmb.setVisible(encoder == "libjpeg")
             self.chroma_subsampling_jpegli_cmb.setVisible(encoder == "JPEGLI")
@@ -464,6 +465,11 @@ class OutputTab(QWidget):
         self.wm.cleanVars()
         cur_format = self.format_cmb.currentText()
 
+        # Lossless (before the per-format block, which may set it True for
+        # PNG / Same Format - a tag-wide False after that would overwrite it)
+        self.wm.setCheckedByTag("lossless", False)
+        self.max_compression_cb.setChecked(False)
+
         match cur_format:
             case "AVIF":
                 self.quality_sl.setValue(70)
@@ -506,10 +512,6 @@ class OutputTab(QWidget):
         self.chroma_subsampling_aom_av1_cmb.setCurrentIndex(0)
         self.chroma_subsampling_svt_av1_psy_cmb.setCurrentIndex(0)
         self.chroma_subsampling_jpg_cmb.setCurrentIndex(0)
-
-        # Lossless
-        self.wm.setCheckedByTag("lossless", False)
-        self.max_compression_cb.setChecked(False)
 
         # Smallest Lossless
         for i in self.wm.getWidgetsByTag("format_pool"):
