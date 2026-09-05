@@ -331,4 +331,12 @@ Read in full and reasoned through end-to-end; nothing left unexamined in these f
 - Added `test_runProcess2_decode_failure_returns_empty_string` to `tests/core/test_process.py` (patches `communicate()` to return valid-UTF-8 stdout + non-UTF-8 stderr; asserts the result is `("hello", "")`, all `str`, no exception escapes, decode failure logged). `tests/core/test_process.py` - 7/7 passing (was 6). Full suite `python -m pytest tests/ -q` - 1023/1023 passing (was 1022).
 
 ### Not yet touched at all (as of 2026-09-05)
-`ui/tabs/settings_tab.py` (last remaining file - in progress this pass).
+**None. Full sweep complete as of 2026-09-05.** Final completeness cross-check (recursive `*.py` listing of the repo, excluding `env_dev`/`__pycache__`/`.serena`) against the fully-reviewed list above closed the last gaps:
+- `core/process.py` (79 lines) - full read - 1 bug found and fixed (`runProcess2` raw-bytes-on-decode-failure, see above). `runProcess`/`runProcessOutput`/`_getStartupInfo` otherwise clean.
+- `data/font_loader.py` (35 lines - the whole module) - full read. Static font list, `init()` logs-and-continues on a `-1` `addApplicationFont` result, `ASSETS_FONTS_DIR` constant verified. No issues.
+- `test.py` (53 lines - a pytest launcher CLI wrapper) and `test_convert.py` (528 lines - the standalone manual integration harness, run via `python test_convert.py`, upstream tooling, not part of the pytest suite) - skimmed; test tooling, not production code; no production-bug leads.
+- `core/__init__.py`, `data/__init__.py`, `ui/__init__.py`, `ui/lib/__init__.py`, `ui/widgets/__init__.py`, `ui/dialogs/__init__.py`, `ui/tabs/__init__.py`, `ui/theme/__init__.py` - re-export stubs only, checked.
+- `build.py` / `misc/build_scripts/windows/build.py` - packaging scripts, outside the app's runtime scope; not bug-swept (explicitly out of scope for this hunt).
+- `tests/conftest.py` - test infrastructure, exercised by every suite run.
+
+Every production module under `core/`, `data/`, `ui/`, plus `main.py` and `data/constants.py` has now been read in full and reasoned through at least once across this investigation.
