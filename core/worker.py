@@ -666,13 +666,10 @@ class Worker(QRunnable):
         # Get the smallest file
         sm_f_key = min(path_pool, key=lambda key: file_sizes[key])
 
-        # Remove bigger files
-        for key in path_pool:
-            if key != sm_f_key:
-                try:
-                    os.remove(path_pool[key])
-                except OSError as err:
-                    raise FileException("SL4", f"Failed to delete tmp files. {err}")
+        # Remove bigger files - best-effort: a locked loser must never discard
+        # the already-determined winner (the codebase's rule for cleanup
+        # failures; cleanUp() logs its own errors and never raises).
+        cleanUp([path for key, path in path_pool.items() if key != sm_f_key])
 
         # Handle the smallest file
         self.output = path_pool[sm_f_key]

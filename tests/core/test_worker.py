@@ -1025,8 +1025,8 @@ def test_smallestLossless_smallest_file(png_size, webp_size, jxl_size, expected_
 
     worker.smallestLossless()
 
-    for args, kwargs in mocks["remove"].call_args_list:     # Remove bigger 
-        assert expected_smallest not in args[0]
+    losers = mocks["cleanUp"].call_args[0][0]     # Remove bigger files (best-effort)
+    assert all(expected_smallest not in p for p in losers)
 
     # Finish
     assert worker.output_ext == expected_smallest 
@@ -1055,15 +1055,21 @@ def test_smallestLossless_getsize_failed_cleanup_failed(smallestLossless_patches
     for path in ["tmp/image.png", "tmp/image.webp","tmp/image.jxl"]:
         assert path in mocks["cleanUp"].call_args_list[0][0][0]
 
-def test_smallestLossless_remove_bigger_failed(smallestLossless_patches_v2, worker):
-    mocks = smallestLossless_patches_v2
-    mocks["remove"].side_effect = OSError()
-    with pytest.raises(FileException) as exc:
-        worker.smallestLossless()
+def test_smallestLossless_remove_bigger_failed_keeps_winner(smallestLossless_patches_v2, worker):
+    # Regression: a locked loser file must not discard the already-determined
+    # winner. Real cleanUp semantics (swallow+log) run over a patched
+    # os.remove that always fails; the conversion must still complete.
+    from core.convert import cleanUp as real_cleanUp
 
-    assert "Failed to delete tmp files" in exc.value.msg
-    assert "SL4" in exc.value.id
-    assert mocks["remove"].call_count == 1
+    mocks = smallestLossless_patches_v2
+    mocks["cleanUp"].side_effect = real_cleanUp
+    mocks["remove"].side_effect = OSError()
+
+    worker.smallestLossless()
+
+    assert worker.output == "tmp/image.jxl"
+    assert worker.output_ext == "jxl"
+    assert worker.final_output.endswith(".jxl")
 
 @pytest.mark.parametrize("jxl_auto_lossless_jpeg", [True, False])
 def test_smallestLossless_args(jxl_auto_lossless_jpeg, smallestLossless_patches_v2, worker):
