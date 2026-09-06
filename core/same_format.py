@@ -8,6 +8,40 @@ DEFAULT_ROUTES = {
     "jxl": "JPEG XL",
 }
 
+# Simple presets for "Same Format" mode: per-format encoder settings for
+# each need. Values are anchored to the measured quality-vs-size runs in
+# _infographics_for_preset/ - "Quality" keeps every format in its
+# lossless/visually-lossless band (AVIF has no lossless mode, so its best
+# measured setting is used), "Balanced" targets the shareable-copy role,
+# and "Small" targets the smallest-good-quality role. "quality" is ignored
+# when "lossless" is True (PNG, JPEG XL, WebP) and for formats without a
+# lossless option (AVIF, JPEG).
+PRESETS = {
+    "Quality": {
+        "PNG": {"lossless": True, "quality": 90},
+        "JPEG XL": {"lossless": True, "quality": 90},
+        "WebP": {"lossless": True, "quality": 90},
+        "AVIF": {"lossless": False, "quality": 90},
+        "JPEG": {"lossless": False, "quality": 90},
+    },
+    "Balanced": {
+        "PNG": {"lossless": False, "quality": 90},
+        "JPEG XL": {"lossless": False, "quality": 90},
+        "WebP": {"lossless": False, "quality": 90},
+        "AVIF": {"lossless": False, "quality": 80},
+        "JPEG": {"lossless": False, "quality": 80},
+    },
+    "Small": {
+        "PNG": {"lossless": False, "quality": 80},
+        "JPEG XL": {"lossless": False, "quality": 80},
+        "WebP": {"lossless": False, "quality": 80},
+        "AVIF": {"lossless": False, "quality": 70},
+        "JPEG": {"lossless": False, "quality": 70},
+    },
+}
+
+PRESET_NAMES = ("Quality", "Balanced", "Small", "Custom")
+
 # Targets a route may point at. Mirrors the regular "Format / Mode" entries;
 # worker-handled special modes are deliberately excluded.
 ALLOWED_TARGETS = (
@@ -49,3 +83,22 @@ def resolve(src_ext: str, routes: dict | None = None) -> str | None:
         target = DEFAULT_ROUTES.get(ext)
 
     return target
+
+def apply_format_settings(params: dict, target: str) -> None:
+    """Overwrite the shared quality/lossless params with the per-format
+    values resolved for "Same Format" mode.
+
+    No-op when the settings are absent (e.g. an older config) or when the
+    target carries none (e.g. "Lossless JPEG Transcoding", which ignores
+    both values).
+    """
+    settings = params.get("same_format_settings")
+    if not settings:
+        return
+
+    fmt = settings.get(target)
+    if not fmt:
+        return
+
+    params["quality"] = fmt["quality"]
+    params["lossless"] = fmt["lossless"]

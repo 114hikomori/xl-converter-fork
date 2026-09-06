@@ -364,3 +364,24 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   place (not repo-tracked) for reuse by future sessions instead of
   recreating it - see root `mcp-local-capabilities.md` for the cross-repo
   note.
+
+- 2026-09-06 [Session D]: Same Format preset system done (uncommitted) —
+  `core/same_format.py` gains PRESETS (Quality/Balanced/Small, values
+  anchored to `_infographics_for_preset/` measurements) +
+  `apply_format_settings()`; `Worker.runChecks` applies per-format
+  quality/lossless after resolution; `output_tab.py` replaces the shared
+  quality/lossless controls for the mode with a Preset combo
+  (Quality/Balanced/Small/Custom; Custom reveals per-format
+  quality+lossless rows, seeded from the preset just left) and new
+  tooltips (`same_format` supported-formats/skip note + per-preset
+  explanations in `data/tooltips.py`); sf_quality/sf_lossless saved vars
+  superseded by sf_png_*/sf_jxl_*/sf_webp_*/sf_avif_*/sf_jpeg_* +
+  auto-saved preset. README + changelog updated. Full suite
+  `python -m pytest tests/ -q` — 1034/1034 passing (was 1022).
+
+- 2026-09-06 [Session D]: Portable build with preset system — rebuilt via
+  in-repo `env_build` (PyInstaller 6.22.2; bracket-path ban retired) with
+  `build.py -b portable` → `dist/xl-converter-win-1.2.3-x86_64-portable.7z`
+  (56 MiB, 7z "Everything is Ok"); real launch verified via
+  `[Process]::Start()` → MainWindowTitle "XL Converter". Not committed,
+  not published.

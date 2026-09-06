@@ -5,6 +5,7 @@
 - Add pngquant as the lossy PNG encoder and oxipng as the default lossless PNG post-processor ("PNG Encoder" setting; "Legacy (ImageMagick)" keeps the original behavior).
 - Add quality and lossless controls for the PNG format.
 - Add "Same Format" mode - re-encodes each file with the pipeline assigned to its extension, with a configurable JPEG route.
+- Add "Same Format" presets (Quality / Balanced / Small) that set per-format quality and lossless values, with a Custom mode for per-format control and tooltips explaining the supported formats and each preset's settings.
 
 ## 1.2.3 - 2025-10-02
 

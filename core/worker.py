@@ -154,6 +154,7 @@ class Worker(QRunnable):
                 return
 
             self.params["format"] = resolved
+            same_format.apply_format_settings(self.params, resolved)
 
         # Compatibility
         conflicts.checkForConflicts(

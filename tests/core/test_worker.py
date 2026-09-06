@@ -141,6 +141,20 @@ def test_runChecks_same_format_resolves_to_pipeline(mock_conflicts, mock_isfile,
 
 @patch("core.worker.os.path.isfile", return_value=True)
 @patch("core.worker.conflicts")
+def test_runChecks_same_format_applies_per_format_settings(mock_conflicts, mock_isfile, worker):
+    worker.item_ext = "webp"
+    worker.params["format"] = "Same Format"
+    worker.params["quality"] = 80
+    worker.params["lossless"] = False
+    worker.params["same_format_settings"] = {"WebP": {"lossless": True, "quality": 90}}
+
+    worker.runChecks()
+
+    assert worker.params["quality"] == 90
+    assert worker.params["lossless"] is True
+
+@patch("core.worker.os.path.isfile", return_value=True)
+@patch("core.worker.conflicts")
 def test_runChecks_same_format_route_override(mock_conflicts, mock_isfile, worker):
     worker.item_ext = "jpg"
     worker.params["format"] = "Same Format"

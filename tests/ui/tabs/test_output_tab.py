@@ -160,7 +160,7 @@ def test_onFormatChange_lossless_toggled(app):
     ("Lossless JPEG Transcoding", ["effort", "jxl_verify", "jxl_normalize"]),
     ("JPEG Reconstruction", ["png_fallback"]),
     ("Smallest Lossless", ["smallest_lossless"]),
-    ("Same Format", ["quality", "effort", "lossless"]),
+    ("Same Format", ["effort"]),
 ])
 def test_onFormatChange_visibility(app, file_format, visible_widgets):
     app.format_cmb.setCurrentText(file_format)
@@ -400,11 +400,94 @@ def test_onJPEGEncoderChanged_updates_state_and_rereads_on_format_change(app):
     assert app.chroma_subsampling_jpg_cmb.isVisibleTo(app)
     assert not app.chroma_subsampling_jpegli_cmb.isVisibleTo(app)
 
-@pytest.mark.parametrize("fmt", ("PNG", "Same Format"))
-def test_resetToDefault_png_same_format_lossless_checked(app, fmt):
+@pytest.mark.parametrize("fmt", ("PNG",))
+def test_resetToDefault_png_lossless_checked(app, fmt):
     app.format_cmb.setCurrentText(fmt)
     app.lossless_cb.setChecked(False)
 
     app.resetToDefault()
 
     assert app.lossless_cb.isChecked()
+
+def test_onFormatChange_same_format_preset_visibility(app):
+    app.format_cmb.setCurrentText("Same Format")
+    assert app.sf_preset_l.isVisibleTo(app)
+    assert app.sf_preset_cmb.isVisibleTo(app)
+    assert not app.quality_sl.isVisibleTo(app)
+    assert not app.quality_sb.isVisibleTo(app)
+    assert not app.lossless_cb.isVisibleTo(app)
+
+    app.format_cmb.setCurrentText("JPEG")
+    assert not app.sf_preset_l.isVisibleTo(app)
+    assert not app.sf_preset_cmb.isVisibleTo(app)
+
+def test_same_format_advanced_visibility(app):
+    app.format_cmb.setCurrentText("Same Format")
+    assert not app.sf_png_q_sb.isVisibleTo(app)
+    assert not app.sf_jxl_lossless_cb.isVisibleTo(app)
+    assert not app.sf_avif_q_sb.isVisibleTo(app)
+
+    app.sf_preset_cmb.setCurrentText("Custom")
+    assert app.sf_png_q_sb.isVisibleTo(app)
+    assert app.sf_png_lossless_cb.isVisibleTo(app)
+    assert app.sf_jxl_q_sb.isVisibleTo(app)
+    assert app.sf_webp_lossless_cb.isVisibleTo(app)
+    assert app.sf_avif_q_sb.isVisibleTo(app)
+    assert app.sf_jpeg_q_sb.isVisibleTo(app)
+
+    app.sf_preset_cmb.setCurrentText("Quality")
+    assert not app.sf_png_q_sb.isVisibleTo(app)
+
+def test_same_format_advanced_hidden_outside_mode(app):
+    app.sf_preset_cmb.setCurrentText("Custom")
+    app.format_cmb.setCurrentText("JPEG XL")
+    assert not app.sf_png_q_sb.isVisibleTo(app)
+
+def test_getSettings_same_format_settings_preset(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Quality")
+
+    settings = app.getSettings()["same_format_settings"]
+    assert settings["PNG"] == {"lossless": True, "quality": 90}
+    assert settings["JPEG XL"] == {"lossless": True, "quality": 90}
+    assert settings["WebP"] == {"lossless": True, "quality": 90}
+    assert settings["AVIF"] == {"lossless": False, "quality": 90}
+    assert settings["JPEG"] == {"lossless": False, "quality": 90}
+
+    app.sf_preset_cmb.setCurrentText("Small")
+    settings = app.getSettings()["same_format_settings"]
+    assert settings["AVIF"] == {"lossless": False, "quality": 70}
+    assert settings["JPEG"] == {"lossless": False, "quality": 70}
+
+def test_getSettings_same_format_settings_custom(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Custom")
+    app.sf_png_lossless_cb.setChecked(False)
+    app.sf_png_q_sb.setValue(75)
+    app.sf_jxl_lossless_cb.setChecked(True)
+    app.sf_jpeg_q_sb.setValue(65)
+
+    settings = app.getSettings()["same_format_settings"]
+    assert settings["PNG"] == {"lossless": False, "quality": 75}
+    assert settings["JPEG XL"] == {"lossless": True, "quality": 90}
+    assert settings["JPEG"] == {"lossless": False, "quality": 65}
+
+def test_sf_preset_custom_seeds_from_previous(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Small")
+    app.sf_preset_cmb.setCurrentText("Custom")
+
+    assert app.sf_png_lossless_cb.isChecked() is False
+    assert app.sf_png_q_sb.value() == 80
+    assert app.sf_avif_q_sb.value() == 70
+    assert app.sf_jpeg_q_sb.value() == 70
+
+def test_sf_preset_custom_seed_does_not_overwrite_saved_on_restore(app):
+    # Simulates startup restore: "Custom" selected with sf_prev_preset None
+    # must not seed (saved per-format values survive).
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_png_q_sb.setValue(42)
+    app.sf_prev_preset = None
+    app.sf_preset_cmb.setCurrentText("Custom")
+
+    assert app.sf_png_q_sb.value() == 42

@@ -23,6 +23,7 @@ from PySide6.QtCore import(
 )
 
 from data.constants import JPEG_ALIASES
+from core import same_format
 from core.utils import dictToList
 from ui.lib import WidgetManager
 from ui.lib.utils import setToolTip, isPathValidStr, createQHBoxLayout, blockSignals
@@ -41,6 +42,7 @@ class OutputTab(QWidget):
 
         # Variables
         self.prev_format = None
+        self.sf_prev_preset = None
         self.MAX_THREAD_COUNT = os.cpu_count() or 1
         self.jpg_encoder = settings["jpg_encoder"]
         self.png_encoder = settings["png_encoder"]
@@ -118,6 +120,38 @@ class OutputTab(QWidget):
         self.jxl_modular_cb = self.wm.addWidget("jxl_modular_cb", QCheckBox("Lossy Modular"), "jxl_losssy_modular")
         self.sf_jpeg_route_l = self.wm.addWidget("sf_jpeg_route_l", QLabel("JPEG Route"), "same_format")
         self.sf_jpeg_route_cmb = self.wm.addWidget("sf_jpeg_route_cmb", ComboBox(("JPEG", "Lossless JPEG Transcoding")), "same_format")
+        self.sf_preset_l = self.wm.addWidget("sf_preset_l", QLabel("Preset"), "same_format")
+        self.sf_preset_cmb = self.wm.addWidget("sf_preset_cmb", ComboBox(same_format.PRESET_NAMES), "same_format")
+
+        # Same Format - advanced (Custom preset): per-format quality/lossless.
+        # Defaults mirror the "Quality" preset.
+        self.sf_png_l = self.wm.addWidget("sf_png_l", QLabel("PNG"), "sf_advanced")
+        self.sf_png_lossless_cb = self.wm.addWidget("sf_png_lossless_cb", QCheckBox("Lossless"), "sf_advanced")
+        self.sf_png_q_sb = self.wm.addWidget("sf_png_q_sb", SpinBox(), "sf_advanced")
+        self.sf_jxl_l = self.wm.addWidget("sf_jxl_l", QLabel("JPEG XL"), "sf_advanced")
+        self.sf_jxl_lossless_cb = self.wm.addWidget("sf_jxl_lossless_cb", QCheckBox("Lossless"), "sf_advanced")
+        self.sf_jxl_q_sb = self.wm.addWidget("sf_jxl_q_sb", SpinBox(), "sf_advanced")
+        self.sf_webp_l = self.wm.addWidget("sf_webp_l", QLabel("WebP"), "sf_advanced")
+        self.sf_webp_lossless_cb = self.wm.addWidget("sf_webp_lossless_cb", QCheckBox("Lossless"), "sf_advanced")
+        self.sf_webp_q_sb = self.wm.addWidget("sf_webp_q_sb", SpinBox(), "sf_advanced")
+        self.sf_avif_l = self.wm.addWidget("sf_avif_l", QLabel("AVIF"), "sf_advanced")
+        self.sf_avif_q_sb = self.wm.addWidget("sf_avif_q_sb", SpinBox(), "sf_advanced")
+        self.sf_jpeg_l = self.wm.addWidget("sf_jpeg_l", QLabel("JPEG"), "sf_advanced")
+        self.sf_jpeg_q_sb = self.wm.addWidget("sf_jpeg_q_sb", SpinBox(), "sf_advanced")
+
+        self.sf_png_q_sb.setRange(1, 100)
+        self.sf_jxl_q_sb.setRange(0, 99)
+        self.sf_webp_q_sb.setRange(1, 99)
+        self.sf_avif_q_sb.setRange(0, 99)
+        self.sf_jpeg_q_sb.setRange(1, 100)
+        self.sf_png_lossless_cb.setChecked(True)
+        self.sf_png_q_sb.setValue(90)
+        self.sf_jxl_lossless_cb.setChecked(True)
+        self.sf_jxl_q_sb.setValue(90)
+        self.sf_webp_lossless_cb.setChecked(True)
+        self.sf_webp_q_sb.setValue(90)
+        self.sf_avif_q_sb.setValue(90)
+        self.sf_jpeg_q_sb.setValue(90)
         self.smallest_lossless_png_cb = self.wm.addWidget("smallest_lossless_png_cb", QCheckBox("PNG (Oxipng)"), "format_pool", "smallest_lossless")
         self.smallest_lossless_webp_cb = self.wm.addWidget("smallest_lossless_webp_cb", QCheckBox("WebP"), "format_pool", "smallest_lossless")
         self.smallest_lossless_jxl_cb = self.wm.addWidget("smallest_lossless_jxl_cb", QCheckBox("JPEG XL"), "format_pool", "smallest_lossless")
@@ -164,6 +198,12 @@ class OutputTab(QWidget):
         self.format_grp_lt.addLayout(createQHBoxLayout(self.effort_l, self.int_effort_cb, self.effort_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.quality_l, self.quality_sl, self.quality_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.lossless_cb, self.jxl_modular_cb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_preset_l, self.sf_preset_cmb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_png_l, self.sf_png_lossless_cb, self.sf_png_q_sb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jxl_l, self.sf_jxl_lossless_cb, self.sf_jxl_q_sb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_webp_l, self.sf_webp_lossless_cb, self.sf_webp_q_sb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_avif_l, self.sf_avif_q_sb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jpeg_l, self.sf_jpeg_q_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jpeg_route_l, self.sf_jpeg_route_cmb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.smallest_lossless_png_cb, self.smallest_lossless_webp_cb, self.smallest_lossless_jxl_cb))
         self.format_grp_lt.addWidget(self.max_compression_cb)
@@ -205,6 +245,7 @@ class OutputTab(QWidget):
         self.quality_sl.valueChanged.connect(lambda n: self.quality_sb.setValue(n))
         self.quality_sb.valueChanged.connect(lambda n: self.quality_sl.setValue(n))
         self.lossless_cb.toggled.connect(self._onLosslessToggled)
+        self.sf_preset_cmb.currentTextChanged.connect(self._onSfPresetChanged)
         self.reset_to_default_btn.clicked.connect(self.resetToDefault)
         self.convert_btn.clicked.connect(self.convert.emit)
         self.jxl_normalize_enable_cb.toggled.connect(self._onJXLNormalizeToggled)
@@ -234,6 +275,7 @@ class OutputTab(QWidget):
         setToolTip("smallest_lossless_webp", self.smallest_lossless_webp_cb)
         setToolTip("smallest_lossless_jpeg_xl", self.smallest_lossless_jxl_cb)
         setToolTip("smallest_lossless_max_comp", self.max_compression_cb)
+        setToolTip("same_format", self.sf_preset_l)
 
     def _setToolTipsDynamic(self):
         """Sets tooltips. Their content can change."""
@@ -258,8 +300,23 @@ class OutputTab(QWidget):
                 setToolTip("effort_jpeg_recomp", self.effort_sb)
             case "Same Format":
                 setToolTip("sf_jpeg_route", self.sf_jpeg_route_l, self.sf_jpeg_route_cmb)
-                setToolTip("quality_png", self.quality_sl, self.quality_sb)
-                setToolTip("lossless_png", self.lossless_cb)
+                match self.sf_preset_cmb.currentText():
+                    case "Quality":
+                        setToolTip("sf_preset_quality", self.sf_preset_cmb)
+                    case "Balanced":
+                        setToolTip("sf_preset_balanced", self.sf_preset_cmb)
+                    case "Small":
+                        setToolTip("sf_preset_small", self.sf_preset_cmb)
+                    case "Custom":
+                        setToolTip("sf_preset_custom", self.sf_preset_cmb)
+                        setToolTip("lossless_png", self.sf_png_lossless_cb)
+                        setToolTip("quality_png", self.sf_png_q_sb)
+                        setToolTip("lossless_jpeg_xl", self.sf_jxl_lossless_cb)
+                        setToolTip("quality_jpeg_xl", self.sf_jxl_q_sb)
+                        setToolTip("lossless", self.sf_webp_lossless_cb)
+                        setToolTip("quality_webp", self.sf_webp_q_sb)
+                        setToolTip("quality_avif", self.sf_avif_q_sb)
+                        setToolTip("quality_jpeg", self.sf_jpeg_q_sb)
 
     # //////////////////////////////////////////////////////////
     # /                      Getters
@@ -312,6 +369,7 @@ class OutputTab(QWidget):
                 # for the less-common aliases.
                 ext: self.sf_jpeg_route_cmb.currentText() for ext in JPEG_ALIASES
             },
+            "same_format_settings": self._getSameFormatSettings(),
         }
 
     # //////////////////////////////////////////////////////////
@@ -346,13 +404,14 @@ class OutputTab(QWidget):
         self.prev_format = cur_format
 
         # Visible
-        self.wm.setVisibleByTag("quality_all", cur_format in ("JPEG XL", "AVIF", "WebP", "JPEG", "Same Format") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
+        self.wm.setVisibleByTag("quality_all", cur_format in ("JPEG XL", "AVIF", "WebP", "JPEG") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.int_effort_cb.setVisible(cur_format == "JPEG XL" and self.jxl_int_effort_visible)
         self.wm.setVisibleByTag("effort", cur_format in ("JPEG XL", "AVIF", "WebP", "Lossless JPEG Transcoding", "Same Format"))
         self.wm.setVisibleByTag("jxl_losssy_modular", cur_format == "JPEG XL" and self.jxl_lossy_modular_visible)
-        self.wm.setVisibleByTag("lossless", cur_format in ("JPEG XL", "WebP", "Same Format") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
+        self.wm.setVisibleByTag("lossless", cur_format in ("JPEG XL", "WebP") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.wm.setVisibleByTag("smallest_lossless", cur_format == "Smallest Lossless")
         self.wm.setVisibleByTag("same_format", cur_format == "Same Format")
+        self.wm.setVisibleByTag("sf_advanced", cur_format == "Same Format" and self.sf_preset_cmb.currentText() == "Custom")
         self.chroma_subsampling_l.setVisible(cur_format in ("JPEG", "AVIF"))
         self.chroma_subsampling_jpg_cmb.setVisible(cur_format == "JPEG" and self.jpg_encoder == "libjpeg")
         self.chroma_subsampling_jpegli_cmb.setVisible(cur_format == "JPEG" and self.jpg_encoder == "JPEGLI")
@@ -402,6 +461,43 @@ class OutputTab(QWidget):
         lossless_checked = self.lossless_cb.isChecked()
         self.wm.setEnabledByTag("quality_all", not lossless_checked)
         self.wm.setEnabledByTag("jxl_losssy_modular", not lossless_checked)        
+
+    def _onSfPresetChanged(self, preset: str):
+        prev = self.sf_prev_preset
+        self.sf_prev_preset = preset
+
+        # Entering "Custom" seeds the per-format controls from the preset
+        # just left, so advanced tweaking starts from a known-good baseline.
+        # On startup restore (prev is None) the saved values survive instead.
+        if preset == "Custom" and prev is not None and prev != "Custom":
+            self._seedAdvancedFromPreset(prev)
+
+        self.wm.setVisibleByTag("sf_advanced", self.format_cmb.currentText() == "Same Format" and preset == "Custom")
+        self._setToolTipsDynamic()
+
+    def _seedAdvancedFromPreset(self, preset: str):
+        settings = same_format.PRESETS[preset]
+        self.sf_png_lossless_cb.setChecked(settings["PNG"]["lossless"])
+        self.sf_png_q_sb.setValue(settings["PNG"]["quality"])
+        self.sf_jxl_lossless_cb.setChecked(settings["JPEG XL"]["lossless"])
+        self.sf_jxl_q_sb.setValue(settings["JPEG XL"]["quality"])
+        self.sf_webp_lossless_cb.setChecked(settings["WebP"]["lossless"])
+        self.sf_webp_q_sb.setValue(settings["WebP"]["quality"])
+        self.sf_avif_q_sb.setValue(settings["AVIF"]["quality"])
+        self.sf_jpeg_q_sb.setValue(settings["JPEG"]["quality"])
+
+    def _getSameFormatSettings(self):
+        preset = self.sf_preset_cmb.currentText()
+        if preset in same_format.PRESETS:
+            return deepcopy(same_format.PRESETS[preset])
+
+        return {
+            "PNG": {"lossless": self.sf_png_lossless_cb.isChecked(), "quality": self.sf_png_q_sb.value()},
+            "JPEG XL": {"lossless": self.sf_jxl_lossless_cb.isChecked(), "quality": self.sf_jxl_q_sb.value()},
+            "WebP": {"lossless": self.sf_webp_lossless_cb.isChecked(), "quality": self.sf_webp_q_sb.value()},
+            "AVIF": {"lossless": False, "quality": self.sf_avif_q_sb.value()},
+            "JPEG": {"lossless": False, "quality": self.sf_jpeg_q_sb.value()},
+        }
 
     def onJPEGEncoderChanged(self, encoder: str) -> None:
         self.jpg_encoder = encoder
@@ -466,7 +562,7 @@ class OutputTab(QWidget):
         cur_format = self.format_cmb.currentText()
 
         # Lossless (before the per-format block, which may set it True for
-        # PNG / Same Format - a tag-wide False after that would overwrite it)
+        # PNG - a tag-wide False after that would overwrite it)
         self.wm.setCheckedByTag("lossless", False)
         self.max_compression_cb.setChecked(False)
 
@@ -486,8 +582,8 @@ class OutputTab(QWidget):
                 self.quality_sl.setValue(80)
                 self.lossless_cb.setChecked(True)
             case "Same Format":
-                self.quality_sl.setValue(80)
-                self.lossless_cb.setChecked(True)
+                self.sf_preset_cmb.setCurrentIndex(0)
+                self._seedAdvancedFromPreset("Quality")
                 self.sf_jpeg_route_cmb.setCurrentIndex(0)
             case "Lossless JPEG Transcoding":
                 self.effort_sb.setValue(7)
@@ -546,9 +642,15 @@ class OutputTab(QWidget):
                 self.wm.setVar("png_quality", self.quality_sl.value())
                 self.wm.setVar("png_lossless", self.lossless_cb.isChecked())
             case "Same Format":
-                self.wm.setVar("sf_quality", self.quality_sl.value())
-                self.wm.setVar("sf_lossless", self.lossless_cb.isChecked())
                 self.wm.setVar("sf_jpeg_route", self.sf_jpeg_route_cmb.currentText())
+                self.wm.setVar("sf_png_lossless", self.sf_png_lossless_cb.isChecked())
+                self.wm.setVar("sf_png_quality", self.sf_png_q_sb.value())
+                self.wm.setVar("sf_jxl_lossless", self.sf_jxl_lossless_cb.isChecked())
+                self.wm.setVar("sf_jxl_quality", self.sf_jxl_q_sb.value())
+                self.wm.setVar("sf_webp_lossless", self.sf_webp_lossless_cb.isChecked())
+                self.wm.setVar("sf_webp_quality", self.sf_webp_q_sb.value())
+                self.wm.setVar("sf_avif_quality", self.sf_avif_q_sb.value())
+                self.wm.setVar("sf_jpeg_quality", self.sf_jpeg_q_sb.value())
             case "Lossless JPEG Transcoding":
                 self.wm.setVar("jxl_lossless_jpeg_effort", self.effort_sb.value())
 
@@ -571,8 +673,14 @@ class OutputTab(QWidget):
                 self.wm.applyVar("png_quality", "quality_sl", 80)
                 self.wm.applyVar("png_lossless", "lossless_cb", True)
             case "Same Format":
-                self.wm.applyVar("sf_quality", "quality_sl", 80)
-                self.wm.applyVar("sf_lossless", "lossless_cb", True)
+                self.wm.applyVar("sf_png_lossless", "sf_png_lossless_cb", True)
+                self.wm.applyVar("sf_png_quality", "sf_png_q_sb", 90)
+                self.wm.applyVar("sf_jxl_lossless", "sf_jxl_lossless_cb", True)
+                self.wm.applyVar("sf_jxl_quality", "sf_jxl_q_sb", 90)
+                self.wm.applyVar("sf_webp_lossless", "sf_webp_lossless_cb", True)
+                self.wm.applyVar("sf_webp_quality", "sf_webp_q_sb", 90)
+                self.wm.applyVar("sf_avif_quality", "sf_avif_q_sb", 90)
+                self.wm.applyVar("sf_jpeg_quality", "sf_jpeg_q_sb", 90)
                 if (sf_route := self.wm.getVar("sf_jpeg_route")) is not None:
                     self.sf_jpeg_route_cmb.setCurrentText(sf_route)
             case "Lossless JPEG Transcoding":
@@ -586,6 +694,14 @@ class OutputTab(QWidget):
                 "quality_sl",
                 "effort_sb",
                 "lossless_cb",
+                "sf_png_lossless_cb",
+                "sf_png_q_sb",
+                "sf_jxl_lossless_cb",
+                "sf_jxl_q_sb",
+                "sf_webp_lossless_cb",
+                "sf_webp_q_sb",
+                "sf_avif_q_sb",
+                "sf_jpeg_q_sb",
             )
             self._saveFormatVars()
             self.wm.saveState()

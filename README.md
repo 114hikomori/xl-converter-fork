@@ -43,7 +43,9 @@ The "PNG" format now runs **Oxipng** (lossless) or **pngquant** (lossy) on top o
 
 #### Same Format Mode
 
-A new "Format / Mode" entry that re-encodes every file with the pipeline assigned to its extension - PNG stays PNG (lossy-capable), JPEG stays JPEG or becomes a reversible JPEG XL transcode via "JPEG Route", and WebP/AVIF/JPEG XL are re-encoded in place. Files without an assigned pipeline are skipped.
+A new "Format / Mode" entry that re-encodes every file with the pipeline assigned to its extension - PNG stays PNG (lossy-capable), JPEG stays JPEG or becomes a reversible JPEG XL transcode via "JPEG Route", and WebP/AVIF/JPEG XL are re-encoded in place. Only JPEG XL, AVIF, JPEG, WebP, and PNG are supported; files in any other format are passed through untouched (skipped).
+
+Instead of a single shared quality slider, the mode offers simple presets - **Quality** (lossless where the format supports it, AVIF/JPEG at 90), **Balanced** (90 across the board, AVIF/JPEG at 80), and **Small** (80 across the board, AVIF/JPEG at 70) - each applying its own per-format values. The tooltip on the Preset control explains exactly how every format is configured. Selecting **Custom** reveals per-format quality and lossless controls for fine-grained control.
 
 ## Download
 
