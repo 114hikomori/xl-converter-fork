@@ -115,3 +115,19 @@ Reviewed-and-clean areas get a stamp so future passes skip them.
   3. `smallestLossless_patches_v2`: `"os.path.isfile"` key twice (identical patch) - dead duplicate, misleading.
 - **Fix applied:** deleted the first (dead) `downscaling` entry and both identical duplicate keys. Re-ran the AST scan: 0 duplicate-key dict literals remain in `tests/`. Full suite `python -m pytest tests/ -q` - 1038/1038 passing.
 - `TWINS:` the AST scan itself is the twin check - all of `tests/` (and it flagged nothing outside this file); production `core/`/`data/`/`ui/` dict literals were included in the same scan - 0 duplicate-key sites.
+
+### Cross-Cutting Test-Suite & Settings-Flow Sweeps (classes beyond Round 1's per-file pass) - 2026-09-06
+- **AST duplicate-dict-key scan** (`tests/` + `core/`/`data/`/`ui/`): 3 hits, all in `tests/core/test_worker.py` (fixed - see entry above); 0 in production.
+- **Mock-assertion-name validity scan** (AST: every `.assert_*()` call in `tests/` checked against unittest.mock's real assertion-method set - a typo'd name on a `MagicMock` silently passes forever because unknown attributes auto-mock): 0 invalid sites.
+- **Bare-mock-truthiness assertion scan** (`assert mocks[...]` with no comparison/call - always true for a MagicMock): 0 sites.
+- **Params/settings producer-consumer cross-check** (regex over `core/` for every `self.params[...]`/`self.params.get(...)`/`self.settings[...]` key, matched against the keys actually emitted by `OutputTab.getSettings()` + `ModifyTab.getSettings()` and `SettingsTab.getSettings()`): 0 read-but-never-produced keys, 0 typos - this also covers the new `same_format_settings` key end to end. Scope note: reads through intermediate variables (e.g. `scl_params["dst"]` inside downscale.py, whose dict is built in-worker) are outside this check; that dict's shape was already verified in Round 1's full reads of `worker.py`/`downscale.py`.
+- **Finding: no further bugs** in these classes.
+
+### `test_convert.py` Release Gate: Dead Nested-Dict Check + Fork Binaries Missing From Dependency List
+- **Location:** `test_convert.py` (`test_dict` helper, consumed by `test_get_settings`; `TestMainWindow.test_dependencies`).
+- **Inspection:** Full read of the 528-line integration harness (the last un-swept executable file; the Windows orchestrator runs it as a release gate via `python test_convert.py`).
+- **Finding: Confirmed Bug (2 sites, harness).**
+  1. `test_dict()`'s recursion guard reads `if test_dict(value) is None: return False` - but `test_dict` only ever returns `True` or `False`, never `None`, so the condition is dead: any nested dict (e.g. `smallest_format_pool`, `same_format_routes`, and the new `same_format_settings`) can contain `None` leaves and `test_get_settings` still passes. The helper's own docstring ("Recursively verify dictionary's integrity") states the intent the code fails to implement.
+  2. `test_dependencies`' `FILES` tuple lists every bundled binary *except* the two the fork added: `CJPEGLI_PATH` and `PNGQUANT_PATH`. A build missing `cjpegli.exe` fails only indirectly (later JPEG tests), and a missing `pngquant.exe` is caught by nothing at all - no harness test exercises lossy PNG - so the dependency gate silently passes an incomplete bundle.
+- **Fix (in progress):** `if not test_dict(value): return False`; add the two paths to `FILES`. Verify by running `test_dependencies` + `test_get_settings` + `test_jpg` from the harness.
+- **Notes, not bugs:** the harness mutates gitignored `_sample_img/` files in place (`os.utime`, EXIF write) and `tear_down` writes real `CONFIG_LOCATION` state - both pre-existing upstream tooling behavior, out of fork scope. `wait_for_done` terminates on every non-cancel path (exceptions still emit `completed`), verified against `Worker.run()`.
