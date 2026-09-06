@@ -117,6 +117,13 @@ Resolve once, early, then let everything downstream run unchanged:
 
 ### B.4 Settings/UI (minimal but configurable)
 
+> **Superseded 2026-09-06:** the shared quality slider + `sf_quality`/
+> `sf_lossless` vars described below were replaced by the Same Format
+> preset system (Quality/Balanced/Small/Custom with per-format saved
+> vars) — commit `a02d329`, see Progress Log entry "Session D". The
+> per-format hydration "documented future extension" below is exactly
+> what shipped. Kept for design-history.
+
 - Add `"Same Format"` to the combo tuple (`output_tab.py:107`).
 - When selected, show the **existing generic widgets** (quality slider,
   effort, lossless checkbox) bound to new saved vars `sf_quality`,

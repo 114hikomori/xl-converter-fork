@@ -329,3 +329,7 @@ rewrite this section, only add to it)
   Same Format cases. PENDING: misc/build_scripts/{windows,linux,macos}
   pngquant fetch scripts + Makefile wiring (needs verified prebuilt URLs +
   docker); root test_convert.py functional suite (needs real binaries).
+  **2026-09-07: all PENDING items closed** - pngquant scripts exist for
+  windows/linux/macos and are wired into the Makefile TOOLS list;
+  test_convert.py runs green (31/31, 2026-09-06/07, incl. the dependency
+  gate now covering pngquant/cjpegli/jpegtran binaries).

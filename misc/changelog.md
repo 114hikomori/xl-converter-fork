@@ -9,6 +9,23 @@
 - Add HEIC/HEIF input support (decoded via the bundled ImageMagick's libheif; multipage/burst files are rejected with a clear error).
 - Show a warning listing skipped files when unsupported formats are dropped or added.
 
+### Fixed
+
+- Fix "Smallest Lossless" and the JPEG XL Intelligent Effort picker reporting a failed conversion (and orphaning temp files) when a losing candidate file could not be deleted; failed conversions no longer leave temp files behind in the output folder.
+- Fix duplicate metadata arguments when combining downscaling with PNG post-processing, and missing metadata arguments when downscaling JXL/AVIF sources through a proxy.
+- Fix Windows timestamp failures being masked as a generic "invalid handle" error instead of the real cause.
+- Fix proxy cleanup leaving stale state and an unreachable error handler.
+- Fix temp file leaks on checksum-verification failure (Lossless JPEG Transcoding), on ExifTool argfile runs, and on normalization-then-verify-failure.
+- Fix RAM Optimizer accepting rule fractions above 1, which could zero out the per-worker thread count.
+- Fix the update checker showing literal "None" text/links when the server sends null optional fields, and `run(silent=True)` being ignored.
+- Fix "Start Logging" reusing a closed file handle after "Stop Logging" (logs silently lost).
+- Fix the play-sound volume default never being applied.
+- Fix the progress dialog detaching from the main window position during cancel-to-finish.
+- Fix click-to-jump on sliders computing wrong values for non-zero minimums, and drag-to-scroll in the settings area never reaching position 0.
+- Fix Shift+Home/Shift+End in the file list corrupting the anchor for later shift-selections.
+- Fix the Output tab showing the wrong JPEG chroma-subsampling control after an encoder change, and "Reset to Defaults" leaving PNG Lossless unchecked.
+- Fix `runProcess2` returning raw bytes (violating its string contract) when subprocess output fails to decode.
+
 ## 1.2.3 - 2025-10-02
 
 ### Added

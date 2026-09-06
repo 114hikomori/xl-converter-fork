@@ -19,7 +19,7 @@ Generate fully compatible JPEG images with up to [35% better compression ratio](
 
 #### Format Support
 
-Maximize image compression with **JPEG XL** and **AVIF**. Also available: **WebP**, **JPEG**, and **PNG**.
+Maximize image compression with **JPEG XL** and **AVIF**. Also available: **WebP**, **JPEG**, and **PNG**. HEIC/HEIF images can be used as input for all formats.
 
 #### Parallel Encoding
 
