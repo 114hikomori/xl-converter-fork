@@ -700,21 +700,48 @@ def test_finishConversion_no_proxy(finishConversion_patches):
 
 def test_finishConversion_no_output(finishConversion_patches):
     worker, mocks = finishConversion_patches
-    mocks["isfile"].side_effect = [False, True, True]
+    worker.output = "temp/path/img.jpg"
+    mocks["isfile"].side_effect = [False, False, True]   # 2nd call: cleanUp's existence check - file is gone (F2)
 
     with pytest.raises(FileException) as exc:
         worker.finishConversion()
 
     assert "output not found" in exc.value.msg
+    mocks["remove"].assert_not_called()   # nothing to clean up (F2)
 
 def test_finishConversion_empty_output(finishConversion_patches):
     worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
     mocks["getsize"].return_value = 0
 
     with pytest.raises(FileException) as exc:
         worker.finishConversion()
 
     assert "output is empty" in exc.value.msg
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")   # F3 must not orphan the tmp
+
+def test_finishConversion_exiftool_failure_cleans_up_output(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.runExifTool = MagicMock(side_effect=FileException("M1", "exiftool failed"))
+
+    with pytest.raises(FileException) as exc:
+        worker.finishConversion()
+
+    assert exc.value.id == "M1"   # original error preserved
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")
+
+def test_finishConversion_rename_failure_cleans_up_output(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    mocks["rename"].side_effect = OSError()
+
+    with pytest.raises(FileException) as exc:
+        worker.finishConversion()
+
+    assert exc.value.id == "F1"
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")
 
 @pytest.mark.parametrize("mode", ["Rename", "Skip"])
 def test_finishConversion_rename_or_skip(finishConversion_patches, mode):

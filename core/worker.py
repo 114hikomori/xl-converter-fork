@@ -544,7 +544,14 @@ class Worker(QRunnable):
                     self.final_output = getUniqueFilePath(self.output_dir, self.item_name, self.item_ext)
                     shutil.copyfile(self.org_item_abs_path, self.final_output)  # Avoid preserving "Read-only" attribute on Windows, as it will conflict with preserving time attributes later on.
         except OSError as err:
+            cleanUp([self.output])
             raise FileException("F1", f"Conversion could not finish. {err}")
+        except FileException:
+            # F3 (empty output) and M* (ExifTool) exits must not orphan the
+            # converted tmp either; the original exception re-propagates
+            # unchanged. (F2: the file does not exist - cleanUp no-ops.)
+            cleanUp([self.output])
+            raise
 
     def postConversionRoutines(self):
         if not os.path.isfile(self.final_output):    # Checking if renaming was successful
