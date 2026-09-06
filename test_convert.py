@@ -67,7 +67,7 @@ def test_dict(data):
     """Recursively verify dictionary's integrity"""
     for key, value in data.items():
         if isinstance(value, dict):
-            if test_dict(value) is None:
+            if not test_dict(value):
                 return False
         else:
             if value is None:
@@ -299,12 +299,15 @@ class TestMainWindow(unittest.TestCase):
             LICENSE_PATH,
             LICENSE_3RD_PARTY_PATH,
             CJXL_PATH,
+            CJPEGLI_PATH,
             DJXL_PATH,
             JXLINFO_PATH,
             IMAGE_MAGICK_PATH,
             AVIFENC_PATH,
             AVIFDEC_PATH,
             OXIPNG_PATH,
+            PNGQUANT_PATH,
+            JPEGTRAN_PATH,
             EXIFTOOL_PATH,
         )
 
