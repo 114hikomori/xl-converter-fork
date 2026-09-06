@@ -412,15 +412,21 @@ class Worker(QRunnable):
                 args[1] = "-e 9"
                 runBinary(encoder, args, self.item_abs_path, path_e9, delete_if_canceled=[path_e7, path_e9])
 
+                # Promote the winner first: a locked loser must never abort
+                # it (same rule as smallestLossless), and every failure exit
+                # cleans up both candidates.
                 try:
                     if os.path.getsize(path_e9) < os.path.getsize(path_e7):
-                        os.remove(path_e7)
-                        os.rename(path_e9, self.output)
+                        winner, loser = path_e9, path_e7
                     else:
-                        os.remove(path_e9)
-                        os.rename(path_e7, self.output)
+                        winner, loser = path_e7, path_e9
+
+                    os.rename(winner, self.output)
                 except OSError as err:
+                    cleanUp([path_e7, path_e9])
                     raise FileException("C2", err)
+
+                cleanUp([loser])
             else:   # Regular conversion
                 if png_stage_b is not None:
                     # PNG two-stage pipeline

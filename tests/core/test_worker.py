@@ -620,6 +620,35 @@ def test_convert_jpeg_xl_intelligent_effort_e7_smaller(worker_convert_patches):
     mocks["remove"].assert_called_once_with("path_e9")
     mocks["rename"].assert_called_once_with("path_e7", worker.output)
 
+def test_convert_jpeg_xl_intelligent_effort_loser_remove_failed_keeps_winner(worker_convert_patches):
+    # Regression: a locked loser file must not abort the winner's promotion
+    # (real cleanUp semantics over an always-failing os.remove).
+    worker, mocks = worker_convert_patches
+    mocks["getsize"].side_effect = [300_000, 400_000]
+    mocks["getUniqueTmpFilePath"].side_effect = ["path_e7", "path_e9"]
+    mocks["remove"].side_effect = OSError()
+    worker.params["format"] = "JPEG XL"
+    worker.params["intelligent_effort"] = True
+
+    worker.convert()
+
+    mocks["rename"].assert_called_once_with("path_e9", worker.output)
+
+def test_convert_jpeg_xl_intelligent_effort_getsize_failed_cleans_up(worker_convert_patches):
+    # Regression: the C2 failure exit must not orphan either tmp candidate.
+    worker, mocks = worker_convert_patches
+    mocks["getsize"].side_effect = OSError()
+    mocks["getUniqueTmpFilePath"].side_effect = ["path_e7", "path_e9"]
+    worker.params["format"] = "JPEG XL"
+    worker.params["intelligent_effort"] = True
+
+    with pytest.raises(FileException) as exc:
+        worker.convert()
+
+    assert exc.value.id == "C2"
+    assert {c[0][0] for c in mocks["remove"].call_args_list} == {"path_e7", "path_e9"}
+    mocks["rename"].assert_not_called()
+
 def test_convert_regular(worker_convert_patches):
     worker, mocks = worker_convert_patches
         
