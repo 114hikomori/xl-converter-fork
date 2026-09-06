@@ -404,3 +404,21 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   from our Fixed list). Upstream's DOWNSCALING_DISALLOWED_FORMATS gained
   "Same Format"; their CJPEGLI input fix adopted. Verified: pytest
   1154/1154, test_convert.py 36/36 (real binaries), VERSION now 1.3.0.
+
+- 2026-09-07 [Session E]: Post-merge refresh done — env_dev/env_build
+  updated to merged requirements (PySide6 6.10.3, pytest 9.0.2, psutil,
+  pillow 12.1.0); pytest 1154/1154 on new deps. Binaries: MSYS2 toolchain
+  absent, so official prebuilts used instead of source builds — libjxl
+  cjxl/djxl/jxlinfo -> v0.12.0 (official static win64; cjpegli kept at
+  0.11.1 mingw build since the official zip omits it - independent binary,
+  no cross-version interaction), libavif avifenc/avifdec -> 1.4.2 with
+  AOM 3.14.1 + dav1d 1.5.3 (matches upstream pins exactly); oxipng 10.2.0
+  / exiftool 13.59 / magick 7.1.2-30 / pngquant 2.17.0 / jpegtran 3.1.0
+  already at-or-newer-than upstream pins, kept. test_convert.py 36/36 with
+  new binaries (incl. UTF-8 + LJT/reconstruction round-trips). Built
+  dist/xl-converter-win-1.3.0-x86_64-portable.7z (57 MiB), bundle
+  contents version-checked, launch verified ("XL Converter" window).
+  Note for future release builds: run misc/build_scripts/windows/
+  pyinstaller.cmd (upstream's new MSVC-bootloader PyInstaller v6.11.1
+  setup) if the bootloader must match upstream; current env_build
+  PyInstaller 6.22.2 pip wheel works (build + launch verified).
