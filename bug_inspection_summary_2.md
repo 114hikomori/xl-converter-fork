@@ -113,5 +113,5 @@ Reviewed-and-clean areas get a stamp so future passes skip them.
   1. `worker` fixture: `"downscaling": {"enabled": False}` appears at line 27 and again at line 43 with the full dict (`mode`, `percent`, `width`, ...). Python keeps the *last* entry - the first is silently dead. No test breaks today only because the surviving value is the correct one; had the order ever been reversed (or someone "fixed" the wrong duplicate), every downscaling-aware test would silently receive an incomplete dict. A live footgun and a misreader.
   2. `finishConversion_patches`: `"removeFile"` key twice (identical patch) - dead duplicate, misleading.
   3. `smallestLossless_patches_v2`: `"os.path.isfile"` key twice (identical patch) - dead duplicate, misleading.
-- **Fix (in progress):** delete the first `downscaling` entry and the two identical duplicate keys; re-run the file + full suite.
+- **Fix applied:** deleted the first (dead) `downscaling` entry and both identical duplicate keys. Re-ran the AST scan: 0 duplicate-key dict literals remain in `tests/`. Full suite `python -m pytest tests/ -q` - 1038/1038 passing.
 - `TWINS:` the AST scan itself is the twin check - all of `tests/` (and it flagged nothing outside this file); production `core/`/`data/`/`ui/` dict literals were included in the same scan - 0 duplicate-key sites.

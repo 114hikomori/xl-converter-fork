@@ -24,7 +24,6 @@ def worker():
             "custom_output_dir_path": "",
             "keep_dir_struct": False,
             "if_file_exists": "Rename",
-            "downscaling": {"enabled": False},
             "delete_original": False,
             "delete_original_mode": "To Trash",
             "smallest_format_pool": {"png": True, "webp": True, "jxl": True},
@@ -663,7 +662,6 @@ def finishConversion_patches(worker):
         "removeFile": patch("core.worker.removeFile"),
         "send2trash": patch("core.worker.send2trash"),
         "rename": patch("core.worker.os.rename"),
-        "removeFile": patch("core.worker.removeFile"),
         "getsize": patch("core.worker.os.path.getsize", return_value=300_000),
         "isfile": patch("core.worker.os.path.isfile", side_effect=[True, True, True]),
         "getUniqueFilePath": patch("core.worker.getUniqueFilePath", return_value="final/path/img.jpg"),
@@ -989,7 +987,6 @@ def smallestLossless_patches_v2():
         "copy": patch("core.worker.shutil.copy"),
         "runBinary": patch("core.worker.runBinary", return_value=("", "")),
         "remove": patch("core.worker.os.remove"),
-        "os.path.isfile": patch("core.worker.os.path.isfile", return_value=True),
         "os.path.isfile": patch("core.worker.os.path.isfile", return_value=True),
         "cleanUp": patch("core.worker.cleanUp"),
     }
