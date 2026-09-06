@@ -120,6 +120,7 @@ class FileView(QTreeWidget):
         event.accept()
 
         items = []
+        rejected = []
         preserve_parent = len(event.mimeData().urls()) > 1
         flatpak_permisssion_err = False
 
@@ -150,6 +151,8 @@ class FileView(QTreeWidget):
                                     Path(path).parent if preserve_parent else Path(path),
                                 )
                             )
+                        else:
+                            rejected.append(file_path.name)
 
                 elif os.path.isfile(path):  # Single file
                     file_path = Path(path)
@@ -164,9 +167,17 @@ class FileView(QTreeWidget):
                                 Path(file_path).parent,
                             )
                         )
+                    else:
+                        rejected.append(file_path.name)
 
         if flatpak_permisssion_err:
             message_box.info(self, "Permission Error", "Insufficient Flatpak permissions.\nAdd filesystem permissions to the source directory or volume.")
+
+        if rejected:
+            shown = ", ".join(rejected[:10])
+            if len(rejected) > 10:
+                shown += f"\n\n...and {len(rejected) - 10} more."
+            message_box.info(self, "Unsupported Files", f"{len(rejected)} file(s) were not added because their format is not supported:\n\n{shown}")
 
         if not items:
             return

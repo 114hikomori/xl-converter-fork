@@ -41,6 +41,12 @@ This fork extends upstream with the following changes:
 
 The "PNG" format now runs **Oxipng** (lossless) or **pngquant** (lossy) on top of the decoded image. The encoder is selectable via Settings → Conversion → "PNG Encoder", together with the generic Quality slider and Lossless option in the Output tab. The original single-pass behavior remains available as "Legacy (ImageMagick)".
 
+#### HEIC/HEIF Input
+
+HEIC and HEIF images can be added as input and converted to any supported target (decoded by the bundled ImageMagick's libheif). Multi-image (burst) HEIC files are rejected with a clear error, like other multipage formats.
+
+When files with unsupported extensions are dropped or added, a dialog now lists what was skipped instead of ignoring them silently.
+
 #### Same Format Mode
 
 A new "Format / Mode" entry that re-encodes every file with the pipeline assigned to its extension - PNG stays PNG (lossy-capable), JPEG stays JPEG or becomes a reversible JPEG XL transcode via "JPEG Route", and WebP/AVIF/JPEG XL are re-encoded in place. Only JPEG XL, AVIF, JPEG, WebP, and PNG are supported; files in any other format are passed through untouched (skipped).

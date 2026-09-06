@@ -6,6 +6,8 @@
 - Add quality and lossless controls for the PNG format.
 - Add "Same Format" mode - re-encodes each file with the pipeline assigned to its extension, with a configurable JPEG route.
 - Add "Same Format" presets (Quality / Balanced / Small) that set per-format quality and lossless values, with a Custom mode for per-format control and tooltips explaining the supported formats and each preset's settings.
+- Add HEIC/HEIF input support (decoded via the bundled ImageMagick's libheif; multipage/burst files are rejected with a clear error).
+- Show a warning listing skipped files when unsupported formats are dropped or added.
 
 ## 1.2.3 - 2025-10-02
 

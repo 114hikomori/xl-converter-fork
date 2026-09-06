@@ -33,7 +33,7 @@ def checkForConflicts(src_ext: str, src_image_path: str, target_format: str, dow
 
         if downscaling:
             raise GenericException("CF1", f"Downscaling is not supported for animation")
-    elif src_ext in ("tif", "tiff", "webp"):
+    elif src_ext in ("tif", "tiff", "webp", "heic", "heif"):
 
         # Multipage images
         page_num, err = getImageCount(src_image_path)

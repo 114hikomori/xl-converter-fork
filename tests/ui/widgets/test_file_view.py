@@ -229,6 +229,39 @@ def test_drop_event_flatpak_has_permissions(file_view):
         assert file_view.topLevelItem(0).text(2) == sample_imgs[0]
         assert file_view.topLevelItem(2).text(2) == sample_imgs[2]
 
+@patch("ui.widgets.file_view.os.path.isdir", return_value=False)
+@patch("ui.widgets.file_view.os.path.isfile", return_value=True)
+def test_drop_event_heic_accepted(mock_isfile, mock_isdir, file_view):
+    mime_data = QMimeData()
+    mime_data.setUrls([QUrl.fromLocalFile("C:/imgs/photo.heic")])
+    mock_event = MagicMock()
+    mock_event.mimeData.return_value = mime_data
+    with patch("ui.widgets.file_view.message_box.info") as mock_info:
+        file_view.dropEvent(mock_event)
+
+    assert file_view.topLevelItemCount() == 1
+    mock_info.assert_not_called()
+
+@patch("ui.widgets.file_view.os.path.isdir", return_value=False)
+@patch("ui.widgets.file_view.os.path.isfile", return_value=True)
+def test_drop_event_unsupported_files_warn(mock_isfile, mock_isdir, file_view):
+    mime_data = QMimeData()
+    mime_data.setUrls([
+        QUrl.fromLocalFile("C:/imgs/photo.heic"),
+        QUrl.fromLocalFile("C:/imgs/doc.pdf"),
+        QUrl.fromLocalFile("C:/imgs/clip.mp4"),
+    ])
+    mock_event = MagicMock()
+    mock_event.mimeData.return_value = mime_data
+    with patch("ui.widgets.file_view.message_box.info") as mock_info:
+        file_view.dropEvent(mock_event)
+
+    assert file_view.topLevelItemCount() == 1   # only the heic
+    mock_info.assert_called_once()
+    msg = mock_info.call_args[0][2]
+    assert "2 file(s)" in msg
+    assert "doc.pdf" in msg and "clip.mp4" in msg
+
 def test_move_down(file_view):
     file_view.addItems(get_sample_items(3))
 

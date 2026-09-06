@@ -192,6 +192,7 @@ class InputTab(QWidget):
             return
         
         tmp = []
+        rejected = []
         for abs_path, anchor_path in items:
             ext = abs_path.suffix[1:]
 
@@ -204,7 +205,15 @@ class InputTab(QWidget):
                         anchor_path,
                     )
                 )
+            else:
+                rejected.append(abs_path.name)
         
         self.file_view.startAddingItems()
         self.file_view.addItems(tmp)
         self.file_view.finishAddingItems()
+
+        if rejected:
+            shown = ", ".join(rejected[:10])
+            if len(rejected) > 10:
+                shown += f"\n\n...and {len(rejected) - 10} more."
+            message_box.info(self, "Unsupported Files", f"{len(rejected)} file(s) were not added because their format is not supported:\n\n{shown}")

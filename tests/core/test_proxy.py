@@ -21,6 +21,9 @@ def test_isProxyNeeded_png(proxy):
     ("AVIF", "jxl", True),
     ("WebP", "png", False),
     ("WebP", "exr", True),
+    ("WebP", "heic", False),
+    ("JPEG XL", "heic", True),
+    ("AVIF", "heic", True),
     ("Smallest Lossless", "png", True),
 ])
 def test_test_isProxyNeeded_base(proxy, file_format, src_ext, expected):

@@ -97,3 +97,21 @@ def test_checkForConflicts_animated_webp_source(checkForConflicts_patches):
     
         assert "CF3" == exc_info.value.id
         assert "Animated WebP is not supported as input" in exc_info.value.msg
+
+def test_checkForConflicts_multipage_heic(checkForConflicts_patches):
+    mocks = checkForConflicts_patches
+    mocks["getImageCount"].return_value = (2, "Error")
+
+    with (
+        pytest.raises(GenericException) as exc_info,
+    ):
+        conflicts.checkForConflicts("heic", "path/to/src.heic", "JPEG XL", False)
+
+        assert "CF3" == exc_info.value.id
+        assert "Multipage images are not supported" in exc_info.value.msg
+
+def test_checkForConflicts_single_page_heic_ok(checkForConflicts_patches):
+    mocks = checkForConflicts_patches
+    mocks["getImageCount"].return_value = (1, "")
+
+    conflicts.checkForConflicts("heic", "path/to/src.heic", "JPEG XL", False)  # must not raise

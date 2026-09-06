@@ -306,6 +306,28 @@ def test__addItems_items(input_tab__addItems_patched):
             sample_file[1],
         )
     input_tab.file_view.finishAddingItems.assert_called_once()
+
+def test__addItems_unsupported_warns(input_tab__addItems_patched):
+    input_tab, mocks = input_tab__addItems_patched
+    input_tab._addItems([
+        (Path("/tmp/Pictures/image_0.jpg"), Path("/tmp/Pictures")),
+        (Path("/tmp/Pictures/doc.pdf"), Path("/tmp/Pictures")),
+        (Path("/tmp/Pictures/clip.mp4"), Path("/tmp/Pictures")),
+    ])
+
+    assert input_tab.file_view.addItems.call_args[0][0] == [
+        ("image_0", "jpg", str(Path("/tmp/Pictures/image_0.jpg")), Path("/tmp/Pictures")),
+    ]
+    mocks["message_box.info"].assert_called_once()
+    msg = mocks["message_box.info"].call_args[0][2]
+    assert "2 file(s)" in msg
+    assert "doc.pdf" in msg and "clip.mp4" in msg
+
+def test__addItems_all_supported_no_warning(input_tab__addItems_patched):
+    input_tab, mocks = input_tab__addItems_patched
+    input_tab._addItems([(Path("/tmp/Pictures/image_0.jpg"), Path("/tmp/Pictures"))])
+
+    mocks["message_box.info"].assert_not_called()
     
 def test_convert_signal(input_tab_patched):
     input_tab, mocks = input_tab_patched
