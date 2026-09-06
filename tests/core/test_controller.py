@@ -169,6 +169,27 @@ def test_checkProcessingRequirements_exiftool_empty_args_happy_path(controller_c
     assert cs.allowed_to_proceed
     assert not cs.display_error
 
+@pytest.mark.parametrize("file_format", [
+    "Lossless JPEG Transcoding",
+    "JPEG Reconstruction",
+    "PNG Optimization",
+])
+def test_checkProcessingRequirements_exiftool_not_required(
+    file_format,
+    controller_checkProcessingRequirements_patched,
+    output_tab_settings,
+    modify_tab_settings,
+    settings_tab_settings,
+):
+    controller, mocks = controller_checkProcessingRequirements_patched
+    output_tab_settings["format"] = file_format
+
+    cs = controller.checkProcessingRequirements(100, False, output_tab_settings, modify_tab_settings, settings_tab_settings)
+
+    assert cs.allowed_to_proceed
+    assert not cs.display_error
+    mocks["isExifToolAvailable"].assert_not_called()
+
 def test_checkProcessingRequirements_jpegli_mode_unavailable(controller_checkProcessingRequirements_patched, output_tab_settings, modify_tab_settings, settings_tab_settings):
     controller, mocks = controller_checkProcessingRequirements_patched
     output_tab_settings["format"] = "JPEG"
@@ -208,13 +229,6 @@ def test_startProcessing(controller, output_tab_settings, modify_tab_settings, s
         patch.object(controller.threadpool, "start") as mock_threadpool_start,
         patch.object(controller.time_left, "startCounting") as mock_startCounting,
     ):
-        mock_worker.return_value.signals = Mock(
-            started=Mock(),
-            completed=Mock(),
-            canceled=Mock(),
-            exception=Mock(),
-        )
-
         controller.startProcessing(output_tab_settings, modify_tab_settings, settings_tab_settings, 4)
 
         mock_configure.assert_called_once_with(
@@ -243,11 +257,7 @@ def test_startProcessing(controller, output_tab_settings, modify_tab_settings, s
             assert args[4] == settings_tab_settings
             assert args[5] == 4
             assert args[6] == controller.mutex
-
-        assert mock_worker.return_value.signals.started.connect.call_count == 100
-        assert mock_worker.return_value.signals.completed.connect.call_count == 100
-        assert mock_worker.return_value.signals.canceled.connect.call_count == 100
-        assert mock_worker.return_value.signals.exception.connect.call_count == 100
+            assert args[7] == controller.worker_signals
         assert mock_threadpool_start.call_count == 100
         assert processing_started_spy.count() == 1
         assert update_progress_line1_spy.at(0)[0] == "Starting the conversion..."

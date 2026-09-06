@@ -132,9 +132,13 @@ def test_setCustomResamplingEnabled(custom_resampling_enabled, app):
     assert app.resample_l.isVisibleTo(app) == custom_resampling_enabled
 
 def test_onFileFormatChanged(app):
-    with patch.object(app, "_updateDownscalingWidgets") as mock__updateDownscalingWidgets:
+    with (
+        patch.object(app, "_updateDownscalingWidgets") as mock__updateDownscalingWidgets,
+        patch.object(app, "_updateMetadataWidgets") as mock__updateMetadataWidgets,
+    ):
         app.onFileFormatChanged("format")
-        app._updateDownscalingWidgets.assert_called_once()
+        mock__updateDownscalingWidgets.assert_called_once()
+        mock__updateMetadataWidgets.assert_called_once()
 
 @pytest.mark.parametrize("downscale_enabled, setEnabled_call_count_expected", [
     (True, 1),
@@ -163,12 +167,28 @@ def test_updateDownscalingWidgets_metadata(
     app._updateDownscalingWidgets()
     assert app.metadata_cmb.isEnabled() == allowed
 
+@pytest.mark.parametrize("mode, visible_widgets", [
+    ("JPEG XL", ("metadata_l", "metadata_cmb")),
+    ("PNG Optimization", ("png_opt_metadata_cb",)),
+])
+def test_updateMetadataWidgets(mode, visible_widgets, app):
+    all_widgets = (
+        "metadata_l",
+        "metadata_cmb",
+        "png_opt_metadata_cb",
+    )
+    app.file_format = mode
+    app._updateMetadataWidgets()
+    for widget in all_widgets:
+        assert getattr(app, widget).isVisibleTo(app) is (widget in visible_widgets)
+
 @pytest.mark.parametrize("file_format, downscaling_checked, expected_enabled", [
     ("Lossless JPEG Transcoding", True, False),
     ("JPEG Reconstruction", True, False),
     ("Smallest Lossless", True, False),
     ("Same Format", True, False),
     ("JPEG XL", True, True),
+    ("PNG Optimization", True, False),
 ])
 def test_updateDownscalingWidgets_downscaling(
     file_format,
@@ -202,7 +222,7 @@ def test_updateDownscalingWidgets_pixel_widgets(
     app
 ):
     app.file_format = "JPEG XL" if downscaling_enabled else "Lossless JPEG Transcoding"
-    app.downscale_cb.setChecked(True)
+    app.downscale_cb.setChecked(downscaling_enabled)
     app.pixel_w_cb.setChecked(pixel_w_checked)
     app.pixel_h_cb.setChecked(pixel_h_checked)
 
@@ -291,6 +311,17 @@ def test_isDownscalingEnabled_enabled(app):
     app.downscale_cb.setChecked(True)
 
     assert app._isDownscalingEnabled()
+
+@pytest.mark.parametrize("file_format", [
+    "Lossless JPEG Transcoding",
+    "JPEG Reconstruction",
+    "Smallest Lossless",
+    "PNG Optimization",
+])
+def test_isDownscalingEnabled_disallowed_formats(file_format, app):
+    app.onFileFormatChanged(file_format)
+    app.setDownscalingEnabled(True)
+    assert not app._isDownscalingEnabled()
 
 def test_getResampling_disabled(app):
     app.setCustomResamplingEnabled(False)

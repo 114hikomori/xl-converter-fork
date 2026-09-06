@@ -2,79 +2,71 @@ import subprocess
 import platform
 import logging
 
-from data.process_manager import ProcessManager
+import psutil
 
-def runProcess2(*cmd: str, cwd: str | None = None) -> (str, str):
+from data.process_manager import ProcessManager, ProcessPriorityManager
+
+SYSTEM = platform.system()
+
+def runProcess2(*cmd: str, cwd: str | None = None) -> tuple[str, str]:
     """Replacement for runProcess() and runProcessOutput().
     
     Returns:
         (stdout, stderr)
+
+    Raises:
+        PermissionError
+        FileNotFoundError
+        OSError
     """
     logging.info(f"[runProcess2] {cmd}")
 
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=_getStartupInfo(), cwd=cwd)
-    ProcessManager.addProcess(process)
-    raw_stdout, raw_stderr = process.communicate()
-    ProcessManager.removeProcess(process)
+    if SYSTEM == "Windows":
+        creationflags = subprocess.CREATE_NO_WINDOW
+        creationflags |= ProcessPriorityManager.getPriorityFlag() or 0
+    else:
+        creationflags = 0
+
+    # No try / except to avoid masking exceptions.
+    process = psutil.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        creationflags=creationflags,
+        shell=False,
+    )
 
     stdout, stderr = "", ""    # Decode failures below degrade to "" (matches runProcessOutput).
     try:
-        if raw_stdout:
-            stdout = raw_stdout.decode("utf-8")
-            logging.info(f"[runProcess2] {stdout}")
+        ProcessManager.addProcess(process)
+        if SYSTEM != "Windows":
+            _setProcessPriority(process, ProcessPriorityManager.getPriorityFlag())
+        stdout, stderr = process.communicate()
+    except Exception as e:
+        logging.error(f"[runProcess2] {e}")
+        return ("", "")
+    finally:
+        ProcessManager.removeProcess(process)
 
-        if raw_stderr:
-            stderr = raw_stderr.decode("utf-8")
-            logging.info(f"[runProcess2] {stderr}")
-    except Exception as err:
-        logging.error(f"[runProcess2] Failed to decode process output. {err}")
+    stdout = stdout.decode("utf-8", errors="replace") if stdout else ""
+    stderr = stderr.decode("utf-8", errors="replace") if stderr else ""
 
-    return (stdout or "", stderr or "")
+    if stdout: logging.info(f"[runProcess2] {stdout}")
+    if stderr: logging.info(f"[runProcess2] {stderr}")
 
-def _getStartupInfo():
-    """Get startup info for Windows. Prevents console window from showing."""
-    startupinfo = None
-    if platform.system() == 'Windows':
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-    return startupinfo
+    return stdout, stderr
 
-def runProcess(*cmd, cwd=None):
-    """Run process."""
-    logging.info(f"[runProcess] {cmd}")
-
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=_getStartupInfo(), cwd=cwd)
-    ProcessManager.addProcess(process)
-    stdout, stderr = process.communicate()
-    ProcessManager.removeProcess(process)
+def _setProcessPriority(process: psutil.Popen, priority: int | None) -> None:
+    """An internal function for setting the priority of a given process."""
+    if priority is None:
+        logging.error(f"[_setProcessPriority] Received None priority, ignoring.")
+        return
 
     try:
-        if stdout:
-            logging.info(f"[runProcess] {stdout.decode('utf-8')}")
-        if stderr:
-            logging.info(f"[runProcess] {stderr.decode('utf-8')}")
-    except Exception as err:
-        logging.error(f"[runProcess] Failed to decode process output. {err}")
-
-def runProcessOutput(*cmd, cwd=None) -> (str, str):
-    """Run process then return its output.
-    
-    Output: (stdout, stderr)
-    """
-    logging.info(f"[runProcessOutput] {cmd}")
-
-    process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=_getStartupInfo(), cwd=cwd)
-
-    try:
-        stdout, stderr = "", ""
-        if process.stdout:
-            stdout = process.stdout.decode("utf-8")
-            logging.info(f"[runProcessOutput] {stdout}")
-        if process.stderr:
-            stderr = process.stderr.decode("utf-8")
-            logging.info(f"[runProcessOutput] {stderr}")
-    except Exception as err:
-        logging.error(f"Failed to decode process output. {err}")
-
-    return (stdout, stderr)
+        process.nice(priority)
+    except psutil.NoSuchProcess:
+        return
+    except (psutil.Error, ValueError) as e:
+        logging.error(f"[_setProcessPriority] Failed to set process priority: {e}")
+        return

@@ -3,6 +3,9 @@ from collections.abc import Hashable
 import os
 import re
 from enum import StrEnum, auto
+import platform
+
+SYSTEM = platform.system()
 
 def removeDuplicatesHashable(data: list[Hashable]) -> list[Hashable]:
     """Removes duplicates from a list while preserving order. All entries must be hashable.
@@ -12,19 +15,24 @@ def removeDuplicatesHashable(data: list[Hashable]) -> list[Hashable]:
     """ 
     return list(dict.fromkeys(data))
 
-def listToFilter(title: str, ext: list[str]) -> str:
+def _caseInsensitiveExtGlob(ext: str) -> str:
+    """A helper function for listToFilter()"""
+    if SYSTEM == "Linux":
+        return "*." + "".join(
+            f"[{char.lower()}{char.upper()}]" if char.isalpha() else char
+            for char in ext
+        )
+
+    # Filters are case insensitive on Windows already.
+    return f"*.{ext}"
+
+def listToFilter(title: str, ext: list[str] | None = None) -> str:
     """Convert a list of extensions into a name filter for file dialogs."""
-    if len(ext) == 0:
-        return f"All Files (*)"
+    if ext is None:
+        return f"{title} (*)"
     
-    last_idx = len(ext) - 1
-
-    output = f"{title} ("
-    for i in range(last_idx):
-        output += f"*.{ext[i]} "
-
-    output += f"*.{ext[last_idx]})" # Last one (no space at the end)
-    return output
+    filters = [_caseInsensitiveExtGlob(i) for i in ext]
+    return f"{title} ({' '.join(filters)})"
 
 def isRunningInFlatpak() -> bool:
     """Determines if the application is running inside a Flatpak sandbox."""

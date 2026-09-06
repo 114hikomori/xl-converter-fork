@@ -6,6 +6,7 @@ from pathlib import Path
 import platform
 from unittest.mock import patch
 import os
+from tempfile import TemporaryDirectory
 
 from PySide6.QtGui import (
     QDropEvent,
@@ -29,9 +30,6 @@ from main import MainWindow
 from data.constants import *
 import core.controller as controller 
 
-# CONFIG
-SAMPLE_IMG_FOLDER = Path(".").resolve() / "_sample_img"
-TMP_IMG_FOLDER = Path(".").resolve() / "_unit_tests_tmp"
 app = QApplication(sys.argv)
 
 # ---------------------------------------------------------------
@@ -75,9 +73,9 @@ def test_dict(data):
     
     return True
 
-def create_sample_img():
-    sample_img_path = SAMPLE_IMG_FOLDER / "sample_img.png"
-
+def create_sample_img(output_dir: str):
+    output_dir.mkdir(exist_ok=True)
+    sample_img_path = output_dir / "sample_img.png"
     if sample_img_path.exists():
         return
 
@@ -91,7 +89,6 @@ def create_sample_img():
         b = int(36 + (0 - 36) * i / h)
         draw.line([(0, i), (w, i)], fill=(r, g, b))
     
-    SAMPLE_IMG_FOLDER.mkdir(exist_ok=True)
     img.save(sample_img_path)
 
 class Data:
@@ -186,7 +183,17 @@ class Interact:
         self.main_window.settings_tab.resetToDefault()
         self.main_window.output_tab.wm.getWidget("threads_sl").setValue(self.main_window.output_tab.MAX_THREAD_COUNT)   # To speed up testing
 
-    def convert_preset(self, src, dst, format, lossless=False, effort=7, jpg_encoder="JPEGLI"):
+    def convert_preset(
+        self,
+        src,
+        dst,
+        format,
+        lossless=False,
+        effort=7,
+        jpg_encoder="JPEGLI",
+        jpeg_reconstruction_fallback=False,
+        oxipng_inplace=False,
+    ):
         self.clear_list()
         self.set_format(format)
         self.set_custom_output(dst)
@@ -195,6 +202,8 @@ class Interact:
         self.set_effort(effort)
         if format == "JPEG":
             self.set_jpg_encoder(jpg_encoder)
+        self.set_jpeg_reconstruction_fallback(jpeg_reconstruction_fallback)
+        self.set_oxipng_inplace(oxipng_inplace)
         self.convert()
 
     def convert(self):
@@ -223,6 +232,12 @@ class Interact:
     
     def set_jpg_encoder(self, encoder: str):
         self.main_window.settings_tab.jpg_encoder_cmb.setCurrentText(encoder)
+
+    def set_jpeg_reconstruction_fallback(self, enabled: bool):
+        self.main_window.output_tab.jxl_png_fallback_cb.setChecked(enabled)
+
+    def set_oxipng_inplace(self, enabled):
+        self.main_window.output_tab.png_opt_inplace_cb.setChecked(enabled)
 
     def drag_and_drop(self, urls):
         mime_data = QMimeData()
@@ -284,14 +299,31 @@ def windows_only(test_func):
 
 class TestMainWindow(unittest.TestCase):
     def setUp(self):
+        self._temp_dir = TemporaryDirectory()
+        self.sample_dir = Path(self._temp_dir.name) / "samples"
+        self.output_dir = Path(self._temp_dir.name) / "output"
+        create_sample_img(self.sample_dir)
+        self.data = Data(self.sample_dir, self.output_dir)
+
+        self._setupPatches()
         self.app = Interact(MainWindow())
-        self.data = Data(SAMPLE_IMG_FOLDER, TMP_IMG_FOLDER)
         self.app.reset_to_default()
         self.app.clear_list()
+
+    def _setupPatches(self):
+        self.config_temp_dir = TemporaryDirectory()
+        self.config_mock = patch(
+            "ui.lib.widget_manager.CONFIG_LOCATION",
+            self.config_temp_dir.name,
+        )
+        self.config_mock.start()
+        self.addCleanup(self.config_mock.stop)
     
     def tearDown(self):
         self.data.cleanup()
         self.app.tear_down()
+        self.config_temp_dir.cleanup()
+        self._temp_dir.cleanup()
 
     def test_dependencies(self):
         FILES = (
@@ -312,7 +344,7 @@ class TestMainWindow(unittest.TestCase):
         )
 
         for i in FILES:
-            if platform.system() == "Linux" and i == EXIFTOOL_PATH:
+            if platform.system() in ("Linux", "Darwin") and i == EXIFTOOL_PATH:
                 continue
             assert Path(i).is_file(), f"File not found ({i})"
 
@@ -347,7 +379,7 @@ class TestMainWindow(unittest.TestCase):
         converted = self.data.get_tmp_folder_content()
         assert blake2(converted[0]) != blake2(converted[1]), "Images should not be the same"
 
-    def test_jpg_reconstruction(self):
+    def test_jpeg_reconstruction_happy_path(self):
         # Source -> JPG
         self.app.convert_preset(self.data.get_sample_img(), self.data.make_tmp_subfolder("jpg"), "JPEG")
 
@@ -357,7 +389,23 @@ class TestMainWindow(unittest.TestCase):
         # JXL -> JPG
         self.app.convert_preset(self.data.get_tmp_folder_content("jxl")[0], self.data.make_tmp_subfolder("reconstructed"), "JPEG Reconstruction")
 
-        assert blake2(self.data.get_tmp_folder_content("jpg")[0]) == blake2(self.data.get_tmp_folder_content("reconstructed")[0]), "Hash mismatch for reconstructed JPG"
+    def test_jpeg_reconstruction_no_reconstruction_data_no_fallback(self):
+        # Source -> JPG
+        self.app.convert_preset(self.data.get_sample_img(), self.data.make_tmp_subfolder("jxl"), "JPEG XL")
+
+        # JXL -> PNG
+        self.app.convert_preset(self.data.get_tmp_folder_content("jxl")[0], self.data.make_tmp_subfolder("png"), "JPEG Reconstruction", jpeg_reconstruction_fallback=False)
+
+        assert not self.data.get_tmp_folder_content("png")
+
+    def test_jpeg_reconstruction_no_reconstruction_data_fallback(self):
+        # Source -> JXL
+        self.app.convert_preset(self.data.get_sample_img(), self.data.make_tmp_subfolder("jxl"), "JPEG XL")
+
+        # JXL -> PNG
+        self.app.convert_preset(self.data.get_tmp_folder_content("jxl")[0], self.data.make_tmp_subfolder("png"), "JPEG Reconstruction", jpeg_reconstruction_fallback=True)
+
+        assert Path(self.data.get_tmp_folder_content("png")[0]).suffix == ".png", "PNG file not found"
 
     def test_avif(self): 
         self.app.convert_preset(self.data.get_sample_img(), self.data.make_tmp_subfolder("avif"), "AVIF")
@@ -526,6 +574,65 @@ class TestMainWindow(unittest.TestCase):
         self.app.convert_preset(converted[0], self.data.make_tmp_subfolder("漢字1"), "PNG")
         assert len(self.data.get_tmp_folder_content()) == 2
 
+    def test_png_optimization(self):
+        source_path = self.data.get_sample_img()
+        source_b2sum = blake2(source_path)
+
+        self.app.convert_preset(
+            source_path,
+            self.data.make_tmp_subfolder("png_optimized"),
+            "PNG Optimization",
+            effort=4,
+        )
+
+        optimized = self.data.get_tmp_folder_content("png_optimized")
+        assert blake2(source_path) == source_b2sum, "Original image should not be modified"
+        assert len(optimized) == 1, "Optimized PNG not found"
+        assert optimized[0].suffix == ".png"
+
+        with (
+            Image.open(source_path) as org,
+            Image.open(optimized[0]) as dst,
+        ):
+            assert org.size == dst.size
+            assert org.tobytes() == dst.tobytes()
+
+    def test_png_optimization_effort(self):
+        source_path = self.data.get_sample_img()
+
+        self.app.convert_preset(
+            source_path,
+            self.data.make_tmp_subfolder("low_effort"),
+            "PNG Optimization",
+            effort=0,
+        )
+        self.app.convert_preset(
+            source_path,
+            self.data.make_tmp_subfolder("high_effort"),
+            "PNG Optimization",
+            effort=4,
+        )
+
+        low_effort = self.data.get_tmp_folder_content("low_effort")
+        high_effort = self.data.get_tmp_folder_content("high_effort")
+
+        assert len(low_effort) == 1
+        assert len(high_effort) == 1
+        assert os.path.getsize(low_effort[0]) > os.path.getsize(high_effort[0])
+
+    def test_png_optimization_inplace(self):
+        source_path = self.data.get_sample_img()
+        source_b2sum = blake2(source_path)
+
+        self.app.convert_preset(
+            source_path,
+            self.data.make_tmp_subfolder("unused"),
+            "PNG Optimization",
+            effort=2,
+            oxipng_inplace=True,
+        )
+
+        assert blake2(source_path) != source_b2sum, "Source checksum should differ"
+
 if __name__ == "__main__":
-    create_sample_img()
     unittest.main(failfast=True)

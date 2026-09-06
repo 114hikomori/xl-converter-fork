@@ -120,14 +120,17 @@ def test_runner_run_happy_path(runner):
     with (
         patch("core.update_checker.UpdateCheckerWorker", return_value=mock_UpdateCheckerWorker),
         patch("core.update_checker.QThread", return_value=mock_QThread),
-    ):    
+    ):
         runner.run()
 
         mock_UpdateCheckerWorker.moveToThread.assert_called_once_with(mock_QThread)
         mock_QThread.started.connect.assert_called_once_with(mock_UpdateCheckerWorker.run)
         mock_UpdateCheckerWorker.json_received.connect.assert_called_once_with(runner.json_received)
         mock_UpdateCheckerWorker.error_occurred.connect.assert_called_once_with(runner.error_occurred)
-        mock_UpdateCheckerWorker.finished.connect.assert_called_once_with(runner._cleanup)
+        mock_UpdateCheckerWorker.finished.connect.assert_any_call(mock_UpdateCheckerWorker.deleteLater)
+        mock_UpdateCheckerWorker.finished.connect.assert_any_call(mock_QThread.quit)
+        mock_QThread.finished.connect.assert_any_call(mock_QThread.deleteLater)
+        mock_QThread.finished.connect.assert_any_call(runner._cleanup)
         mock_QThread.start.assert_called_once()
 
 def test_runner_run_already_running(runner):
@@ -163,8 +166,8 @@ def test_isVersionNewer_cur_ver_parsing_failed(caplog):
         pytest.raises(ValueError),
         caplog.at_level(logging.ERROR),
     ):
-        assert update_checker.isNewerVersionAvailable("v1.2.0")
-        assert "Failed to parse current version." in caplog.text
+        update_checker.isNewerVersionAvailable("v1.2.0")
+    assert "Failed to parse current version." in caplog.text
 
 def test_isVersionNewer_remote_ver_parsing_failed(caplog):
     with (

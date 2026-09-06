@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 from contextlib import ExitStack
+import logging
 
 import pytest
 from PySide6.QtCore import QMutex
@@ -25,15 +26,20 @@ def test_isProxyNeeded_png(proxy):
     ("JPEG XL", "heic", True),
     ("AVIF", "heic", True),
     ("Smallest Lossless", "png", True),
+    ("PNG Optimization", "png", False),
 ])
-def test_test_isProxyNeeded_base(proxy, file_format, src_ext, expected):
+def test_isProxyNeeded_base(proxy, file_format, src_ext, expected):
     assert proxy.isProxyNeeded(file_format, src_ext) == expected
 
-def test_test_isProxyNeeded_jpegli(proxy):
+def test_isProxyNeeded_jpegli(proxy):
     assert not proxy.isProxyNeeded("JPEG", "jpg", jpegli=True)
 
-def test_test_isProxyNeeded_unknown(proxy):
+def test_isProxyNeeded_unknown_ext(proxy):
     assert proxy.isProxyNeeded("JPEG XL", "exr")
+
+def test_isProxyNeeded_unknown_format(proxy):
+    with pytest.raises(FileException):
+        proxy.isProxyNeeded("Unknown", "none")
 
 def test_isProxyNeeded_downscaling(proxy):
     assert proxy.isProxyNeeded("JPEG XL", "exr", downscaling_enabled=True)
@@ -104,9 +110,57 @@ def test_proxyExists(proxy):
     proxy.proxy_path = "/proxy/path/proxy.png"
     assert proxy.proxyExists()
 
-def test_cleanup(proxy):
-    proxy.proxy_path = "/proxy/path/proxy.png"
-    with patch("core.proxy.os.remove") as mock_remove:
-        proxy.cleanup()
-        mock_remove.assert_called_once_with("/proxy/path/proxy.png")
+def test_cleanUp_no_proxy(proxy):
+    assert proxy.proxy_path is None
+    with (
+        patch("core.proxy.os.remove") as mock_remove,
+        patch("core.proxy.os.path.isfile", return_value=True),
+    ):
+        proxy.cleanUp()
+        mock_remove.assert_not_called()
+
+def test_cleanUp_happy_path(proxy):
+    proxy_file = "/proxy/path/proxy.png"
+    proxy.proxy_path = proxy_file
+    with (
+        patch("core.proxy.os.remove") as mock_remove,
+        patch("core.proxy.os.path.isfile", return_value=True),
+    ):
+        proxy.cleanUp(raising=True)
+        mock_remove.assert_called_once_with(proxy_file)
         assert proxy.proxy_path is None
+
+def test_cleanUp_sad_path_raising(proxy):
+    proxy_file = "/proxy/path/proxy.png"
+    proxy.proxy_path = proxy_file
+    with (
+        patch("core.proxy.os.remove", side_effect=OSError) as mock_remove,
+        patch("core.proxy.os.path.isfile", return_value=True),
+        pytest.raises(FileException),
+    ):
+        proxy.cleanUp(raising=True)
+    mock_remove.assert_called_once_with(proxy_file)
+    assert proxy.proxy_path is None
+
+def test_cleanUp_sad_path_not_raising(proxy, caplog):
+    proxy_file = "/proxy/path/proxy.png"
+    proxy.proxy_path = proxy_file
+    with (
+        patch("core.proxy.os.remove", side_effect=OSError) as mock_remove,
+        patch("core.proxy.os.path.isfile", return_value=True),
+        caplog.at_level(logging.ERROR)
+    ):
+        proxy.cleanUp(raising=False)
+        mock_remove.assert_called_once_with(proxy_file)
+        assert proxy.proxy_path is None
+        assert "Failed to clean up proxy" in caplog.text
+
+def test_cleanUp_no_file(proxy, caplog):
+    proxy_file = "/proxy/path/proxy.png"
+    proxy.proxy_path = proxy_file
+    with (
+        patch("core.proxy.os.remove", side_effect=OSError) as mock_remove,
+        patch("core.proxy.os.path.isfile", return_value=False),
+    ):
+        proxy.cleanUp(raising=True)
+        mock_remove.assert_not_called()

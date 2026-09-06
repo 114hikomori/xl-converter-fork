@@ -2,6 +2,7 @@ import platform
 import tempfile
 import os
 import logging
+import shutil
 
 from data.constants import (
     EXIFTOOL_PATH,
@@ -11,7 +12,7 @@ from data.constants import (
     OXIPNG_PATH,
     PNGQUANT_PATH
 )
-from core.process import runProcess, runProcessOutput
+from core.process import runProcess2
 from core.exceptions import GenericException, FileException
 
 class Data:
@@ -60,7 +61,7 @@ def _runExifTool(*args):
                 raise FileException("M0", f"Failed to create an argfile. {e}")
             
             try:
-                runProcess(EXIFTOOL_PATH, "-charset", "filename=UTF8", "-@", tmp_file_name, cwd=tmp_file_dir)
+                runProcess2(EXIFTOOL_PATH, "-charset", "filename=UTF8", "-@", tmp_file_name, cwd=tmp_file_dir)
             except Exception:
                 # The argfile was already confirmed written above, so best-effort
                 # clean it up before propagating - a secondary cleanup failure
@@ -76,15 +77,10 @@ def _runExifTool(*args):
             except Exception as e:
                 raise FileException("M1", f"Failed to clean up an argfile. {e}")
             # ExifTool does not support UTF-8 paths on Windows, unless you put them in an argfile.
-        case "Linux" | "Darwin":
-            runProcess("exiftool", *args)
-            # ExifTool is no longer included due to a bug in its handling of JPEG XL in the platform-independent Perl library.
-            # If you try to process JPEG XL from Worker via an absolute path, you get:
-            # (stderr): Warning: Install IO::Uncompress::Brotli to decode Brotli-compressed metadata
-        # case "Darwin":
-            # The problem described above is still an issue on macOS.
-            # Do not enable unless it's fixed.
-            # runProcess(EXIFTOOL_PATH, *args)
+        case "Linux":
+            runProcess2("exiftool", *args)
+        case "Darwin":
+            runProcess2(EXIFTOOL_PATH, *args)
         case _:
             logging.error("[metadata - _runExifTool] Not implemented")
 
@@ -98,12 +94,12 @@ def isExifToolAvailable() -> tuple[bool, str]:
         return (Data.exiftool_available, Data.exiftool_err_msg)
 
     match platform.system():
-        case "Linux" | "Darwin":
-            Data.exiftool_available = not "not found" in runProcessOutput("bash", "-c", "type exiftool")[1]
+        case "Linux":
+            Data.exiftool_available = shutil.which("exiftool") is not None
             if Data.exiftool_available == False:
                 Data.exiftool_err_msg = "ExifTool not found. Please install ExifTool on your system and restart the program."
         case "Windows":
-            proc_output = runProcessOutput(EXIFTOOL_PATH, "-ver")
+            proc_output = runProcess2(EXIFTOOL_PATH, "-ver")
             if proc_output[0].strip() == "" or "assertion failed" in proc_output[1]:
                 Data.exiftool_available = False
                 Data.exiftool_err_msg = "Please reinstall this program in a location without special characters to use ExifTool."

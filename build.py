@@ -8,6 +8,9 @@ import hashlib
 from pathlib import Path
 import re
 import glob
+import plistlib
+import tempfile
+import errno
 
 import PyInstaller.__main__
 import requests
@@ -71,7 +74,7 @@ def makedirs(path):
     path = os.path.normpath(path)
 
     try:
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
     except OSError as err:
         print(f"[Error] Makedirs failed ({path}) ({err})")
 
@@ -97,9 +100,9 @@ def blake2(path):
 class Downloader():
     """Downloads dependencies."""
     def __init__(self):
-        self.appimagetool_url = "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
+        self.appimagetool_url = "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
         self.appimagetool_dst = "misc/appimagetool"
-        self.appimagetool_blake2 = "83db0c2644d992045f974592099fdbf69c690f20d8440e773bfb76fff199d4abf9a3b19a72279e63b9aa37ef46b201ced2a106138c0404e2a03de2f7b390c4a5"
+        self.appimagetool_blake2 = "31e2a6f1bc6f9428842e535914d94b27f91483e04bef39f03953e1cb960e9615945751cecc3dc98002e1e6f3bfa64f0358b4b539f7dd5834616fe3f7dcd00923"
 
     def download(self, url, dst, checksum = None):
         dst = Path(dst)
@@ -119,6 +122,10 @@ class Downloader():
         # Verify the checksum
         if checksum is not None:
             if blake2(dst) != checksum:
+                try:
+                    os.remove(dst)
+                except OSError as e:
+                    pass
                 raise Exception(f"[Downloading] Checksum mismatch ({dst.name})")
         
         # Permissions
@@ -134,11 +141,13 @@ class Args():
         self.args = {}
         self.parser.add_argument("--build-type", "-b",
                 help="""Type of build to generate.
-not specified: vanilla build.
+not specified: vanilla build on Windows and Linux. app bundle on macOS.
 sh (Linux only): 7z archive with an installer script.
 appimage (Linux only): an AppImage build.
 innosetup (Windows only): an InnoSetup script and build ready to compile.
-portable (Windows only): 7z archive with the program.""",
+portable (Windows only): 7z archive with the program.
+dmg (macOS only): app wrapped in a dmg archive.
+""",
                 action="store"
         )
         self.parser.add_argument("--update-file", "-u", help="Append an update file (to place on a server).", action="store_true")
@@ -161,8 +170,10 @@ class Builder():
 
         # General
         self.project_name = "xl-converter" 
+        self.project_display_name = "XL Converter"
         self.dst_dir = "dist"
         self.internal_dir = f"{self.dst_dir}/{self.project_name}/_internal"
+        self.icon_svg_path = "assets/icons/logo.svg"
 
         # Shared
         self.bin_dir = {
@@ -193,6 +204,11 @@ class Builder():
 
         # Windows
         self.win_7z_path = "C:\\Program Files\\7-Zip\\7z.exe"
+
+        # macOS
+        self.macos_app_bundle_name = "XL Converter.app"
+        self.logo_icns_path = None
+        self.macos_dmg_background = "misc/images/macos_dmg_background.svg"
         
         # Build Names
         self.version_sanitized = re.sub(r"[ \n]", "-", VERSION)   # No whitespaces or newline characters
@@ -202,7 +218,8 @@ class Builder():
         self.build_7z_name = f"xl-converter-linux-{self.version_sanitized}-x86_64"
         self.build_appimage_name = f"xl-converter-linux-{self.version_sanitized}-x86_64.AppImage"
 
-        self.build_macos_universal_name = f"xl-converter-macos-{self.version_sanitized}-experimental"
+        self.build_macos_app_name = f"xl-converter-macos-{self.version_sanitized}-universal2.app"
+        self.build_macos_dmg_name = f"xl-converter-macos-{self.version_sanitized}-universal2.dmg"
 
         # Clean up
         # base path: xl-converter/_internal
@@ -264,10 +281,16 @@ class Builder():
     def build(self):
         build_type = self.args.getArg('build_type')
 
-        if build_type is not None and build_type not in ("sh", "appimage", "appimage-skip-packing", "innosetup", "portable"):
+        if build_type is not None and build_type not in ("sh", "appimage", "appimage-skip-packing", "innosetup", "portable", "dmg"):
             raise Exception("build_type incorrect")
 
         self._prepare()
+        if platform.system() == "Darwin":
+            self.logo_icns_path = os.path.join(PROGRAM_FOLDER, "./misc/images", "logo.icns")
+            self._generateMacIcnsIcon(
+                os.path.join(PROGRAM_FOLDER, self.icon_svg_path),
+                self.logo_icns_path,
+            )
         self._buildBinaries()
         self._reduceBundleSize()
         self._copyDependencies()
@@ -290,13 +313,16 @@ class Builder():
                     case "portable":
                         self._appendConfig(portable=True)
                         self._buildPortableWin()
+            case "Darwin":
+                rmTree(f"{self.dst_dir}/{self.project_name}")   # Remove leftover dist/xl-converter
+                match build_type:
+                    case "dmg":
+                        self._buildDmg()
        
         if self.args.getArg("update_file"):
             self._appendUpdateFile()
         
         print(f"[Building] Finished (built to {self.dst_dir}/{self.project_name})")
-        if platform.system() == "Darwin":
-            print("[Warning] macOS build support is experimental. Some tools in ./bin/macos are not self-contained. This bundle will not work on another machine! Use for testing only.")
 
     def _prepare(self):
         if platform.system() == "Windows":
@@ -305,7 +331,13 @@ class Builder():
             # Remove read-only in ./bin/win as it can be problematic later on.
             removeReadOnly(self.bin_dir["Windows"])
         
-        rmTree(self.dst_dir)    # Delete ./dist 
+        try:
+            if os.path.isdir(self.dst_dir):
+                shutil.rmtree(self.dst_dir)
+        except OSError as e:
+            if platform.system() == "Darwin" and e.errno == errno.ENOTEMPTY:
+                print("Close or move Finder out of the ./dist directory, and try again.")
+            raise
         
     def _buildBinaries(self):
         print("[Building] Generating binaries")
@@ -319,7 +351,16 @@ class Builder():
     def _copyDependencies(self):
         print("[Building] Copying dependencies")
         bin_dir = self.bin_dir[platform.system()]
-        shutil.copytree(Path(bin_dir), Path(self.internal_dir, bin_dir))
+
+        if platform.system() == "Darwin":
+            dst = os.path.join(
+                os.path.join(self.dst_dir, self.macos_app_bundle_name, "Contents", "Frameworks"),
+                bin_dir
+            )
+        else:
+            dst = os.path.join(self.internal_dir, bin_dir)
+
+        shutil.copytree(Path(bin_dir), dst)
     
     def _appendInstaller(self):
         installer_dir = self.installer_path[platform.system()]
@@ -345,12 +386,16 @@ class Builder():
     def _copyAssets(self):
         print("[Building] Appending assets")
         
-        # Most assets
+        if platform.system() == "Darwin":
+            dst = os.path.join(self.dst_dir, self.macos_app_bundle_name, "Contents", "Frameworks")
+        else:
+            dst = self.internal_dir
+
         for i in self.assets:
             if os.path.isdir(Path(i)):
-                shutil.copytree(Path(i), Path(self.internal_dir, Path(i).name))
+                shutil.copytree(Path(i), Path(dst, Path(i).name))
             elif os.path.isfile(Path(i)):
-                copy(i, self.internal_dir)
+                copy(i, dst)
 
     def _appendUpdateFile(self):
         print("[Building] Appending an update file (to place on a server)")
@@ -451,20 +496,139 @@ class Builder():
             self.build_win_portable_name,
         ], cwd=self.dst_dir)
 
+    def _generateMacIcnsIcon(self, svg_src: str, icns_dst: str) -> None:
+        if platform.system() != "Darwin":
+            return
+
+        with tempfile.TemporaryDirectory(prefix="xl_converter_icon_") as iconset_dir:
+            png_src = os.path.join(iconset_dir, "icon.png")
+            subprocess.run(
+                ["rsvg-convert", "-w", "2048", svg_src, "-o", png_src],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+            iconset_dir = os.path.join(iconset_dir, "bundle.iconset")
+            makedirs(iconset_dir)
+            sizes = [
+                16, 32, 64, 128, 256, 512
+            ]
+            for size in sizes:
+                for retina in (True, False):
+                    pixels = size * (2 if retina else 1)
+                    suffix = "@2x" if retina else ""
+                    name = f"icon_{size}x{size}{suffix}.png"
+                    output_path = os.path.join(iconset_dir, name)
+                    subprocess.run(
+                        ["sips", "-z", str(pixels), str(pixels), png_src, "--out", output_path],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                    )
+
+            if os.path.exists(icns_dst):
+                os.remove(icns_dst)
+            makedirs(os.path.dirname(os.path.normpath(icns_dst)))
+            subprocess.run(
+                ["iconutil", "-c", "icns", iconset_dir, "-o", icns_dst],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+
+    def _buildDmg(self) -> None:
+        if platform.system() != "Darwin":
+            return
+
+        print("[Building] Creating dmg archive")
+
+        try:
+            import dmgbuild
+        except ImportError:
+            raise
+
+        app_dir = os.path.join(self.dst_dir, self.macos_app_bundle_name)
+        dmg_output = os.path.join(self.dst_dir, self.build_macos_dmg_name)
+        license_path = os.path.join(PROGRAM_FOLDER, "LICENSE.txt")
+
+        with tempfile.TemporaryDirectory(prefix="xl_converter_dmg_", dir=self.dst_dir) as tmp_dir:
+            dmg_background_path = os.path.join(tmp_dir, "dmg_background.png")
+            dmg_settings_path = os.path.join(tmp_dir, "dmg_settings.py")
+            dmg_settings_py = f"""
+format = "ULMO"
+
+files = [
+    f"{app_dir}",
+    (f"{license_path}", "LICENSE.txt"),
+]
+hide = [
+    "LICENSE.txt",
+]
+symlinks = {{ "Applications": "/Applications" }}
+license = {{
+    "default-language": "en_US",
+    "licenses": {{
+        "en_US": r"{license_path}",
+    }},
+}}
+
+icon_locations = {{
+    f"{self.macos_app_bundle_name}": (140, 150),
+    "Applications": (500, 150),
+}}
+# NOTE: Font color always remains black if a background is set. Finder doesn't adjust the font color here.
+background = f"{dmg_background_path}"
+badge_icon = f"{self.logo_icns_path}"
+window_rect = ((100, 100), (640, 360))
+default_view = "icon-view"
+icon_size = 128
+text_size = 14
+"""
+            subprocess.run(
+                ["rsvg-convert", "-w", "640", "-h", "360", self.macos_dmg_background, "-o", dmg_background_path],
+                check=True,
+            )
+
+            with open(dmg_settings_path, "w", encoding="utf-8") as f:
+                f.write(dmg_settings_py)
+            
+            try:
+                subprocess.run([
+                    "dmgbuild", "-s", dmg_settings_path, self.project_display_name, dmg_output,
+                ], check=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"dmgbuild failed: {e}") from e
+
     def _reduceBundleSize(self) -> None:
         print("[Building] Reducing bundle size")
 
         current_system = platform.system()
         if current_system not in self.cleanup_resources:
-            Exception(f"_reduceBundleSize is unsupported for {current_system}")
+            raise Exception(f"_reduceBundleSize is unsupported for {current_system}")
         
-        file_patterns = [os.path.join(self.internal_dir, res) for res in self.cleanup_resources[current_system]]
+        if current_system == "Darwin":
+            contents_dir = os.path.join(self.dst_dir, self.macos_app_bundle_name, "Contents")
+            roots = [
+                os.path.join(contents_dir, "Frameworks"),
+                os.path.join(contents_dir, "Resources"),
+            ]
+        else:
+            roots = [self.internal_dir]
+    
+        file_patterns = []
+        for res in self.cleanup_resources[current_system]:
+            for root in roots:
+                file_patterns.append(os.path.join(root, res))
+                if current_system == "Darwin":
+                    file_patterns.append(os.path.join(root, os.path.basename(res)))
+
         files_to_remove = []
         for pattern in file_patterns:
             files_to_remove.extend(glob.glob(pattern))
         
         for path in files_to_remove:
-            if os.path.isfile(path):
+            if not os.path.lexists(path):
+                continue
+            if os.path.islink(path):
+                os.unlink(path)
+            elif os.path.isfile(path):
                 os.remove(path)
             elif os.path.isdir(path):
                 shutil.rmtree(path)

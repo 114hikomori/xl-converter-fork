@@ -1,21 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# IMPORTANT
-# DO NOT UPGRADE without running `test_convert.py`. ImageMagick 7.1.2-3 has issues reading UTF-8 filenames when compiled in MSYS2 MINGW64. The official MSVC artifacts work correctly.
-# magick.exe: UnableToOpenBlob 'C:\Users\user\Pictures\Screenshots\日本語,  - Copy.jpg': No such file or directory @ error/blob.c/OpenBlob/3596.
-# 7.1.1-46 works but cannot be compiled in MSYS2 due to `-Wincompatible-pointer-type`. MSYS2 does not ship older compilers. 7.1.2-3 compiles but cannot be used due to the aforementioned UTF-8 issues.
-
-IMAGEMAGICK_TAG="7.1.1-46"
-LIBHEIF_TAG="v1.19.7"
+IMAGEMAGICK_TAG="7.1.2-29"
+LIBHEIF_TAG="v1.23.1"
 RUN_DIR=$(pwd)
 OUTPUT_DIR="${RUN_DIR}/bin/win/imagemagick"
 TEMP_DIR=$(mktemp -d)
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
 source "${SCRIPT_DIR}/_shared.sh"
-
 trap 'cleanup "${TEMP_DIR}"' EXIT
-set -euo pipefail
+
 check_msys2
 check_packages \
     base-devel \

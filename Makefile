@@ -14,10 +14,10 @@ ifeq ($(UNAME_S),Linux)
 else ifeq ($(UNAME_S),Darwin)
   PLAT ?= macos
 else ifneq (,$(MSYSTEM))
-	ifneq ($(MSYSTEM),MINGW64)
-	  $(error Please run this Makefile in a MINGW64 shell. Current shell: $(MSYSTEM))
-	endif
-	PLAT ?= win
+  ifneq ($(MSYSTEM),MINGW64)
+    $(error Please run this Makefile in a MINGW64 shell. Current shell: $(MSYSTEM))
+  endif
+  PLAT ?= win
 else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
   PLAT ?= win
 else
@@ -78,10 +78,20 @@ help:
 	@echo "    tools: $(TOOLS)"
 	@echo "    other: deps build build-all"
 
+# Prevent Linux DE from freezing.
+ifeq ($(PLAT),linux)
+  BUILD_JOBS := $(shell nproc 2>/dev/null || echo 1)
+  ifneq ($(XDG_CURRENT_DESKTOP),)
+    ifneq ($(BUILD_JOBS),1)
+      BUILD_JOBS := $(shell expr $(BUILD_JOBS) - 1)
+    endif
+  endif
+endif
+
 # Usage: docker_build <Dockerfile> <src> <dst>
 define docker_build
 	mkdir -p $(3)
-	docker build -f $(1) --progress=plain --iidfile tmp.txt . && \
+	docker build --build-arg BUILD_JOBS=$(BUILD_JOBS) -f $(1) --progress=plain --iidfile tmp.txt . && \
 	image_id=$$(cat tmp.txt) && \
 	container_id=$$(docker create $${image_id}) && \
 	docker cp $${container_id}:$(2) $(3) && \
@@ -95,12 +105,13 @@ $(TOOLS): %: build-%-$(PLAT)
 
 .PHONY: deps
 deps: $(TOOLS)
+
 ifeq ($(PLAT),win)
-	deps += build-exiftool-win
+deps: build-exiftool-win
 endif
-# ifeq ($(PLAT),macos)
-# 	deps += build-exiftool-macos
-# endif
+ifeq ($(PLAT),macos)
+deps: build-exiftool-macos
+endif
 
 .PHONY: build
 build: build-$(PLAT)
@@ -118,6 +129,7 @@ build-win:
 .PHONY: build-macos
 build-macos:
 	rm -rf dist
+	$(PYTHON) build.py
 	bash $(SCRIPT_DIR)/macos/build.sh
 
 .PHONY: build-all
@@ -153,9 +165,13 @@ ifeq ($(PLAT),win)
 exiftool:
 	@rm -rf ./bin/win/exiftool
 	bash $(SCRIPT_DIR)/windows/exiftool.sh
+else ifeq ($(PLAT),macos)
+exiftool:
+	@rm -rf ./bin/macos/exiftool
+	bash $(SCRIPT_DIR)/macos/exiftool.sh
 else
 exiftool:
-	$(error The 'exiftool' target is only available on Windows)
+	$(error The 'exiftool' target is only available on Windows and macOS)
 endif
 
 # Misc.

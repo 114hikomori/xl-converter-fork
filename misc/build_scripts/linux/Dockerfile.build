@@ -1,7 +1,6 @@
 # Using oldest maintained version for best GLIBC compatibility.
 FROM ubuntu:22.04
 
-ARG PYINSTALLER_TAG=v6.11.1
 ARG RUN_TESTS=True
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -51,6 +50,8 @@ RUN apt update && apt install -y \
     xdg-desktop-portal-gtk \
     && rm -rf /var/lib/apt/lists/*
 
+RUN git config --global http.version HTTP/1.1
+
 # Install Python
 RUN curl -fsSL https://pyenv.run | bash
 RUN pyenv install 3.13 && \
@@ -83,12 +84,8 @@ RUN python -m venv /build/env_build && \
     pip install -r /build/requirements.txt
 
 # Setup PyInstaller
-RUN . /build/env_build/bin/activate && \
-    git clone -b ${PYINSTALLER_TAG} --depth 1 https://github.com/pyinstaller/pyinstaller.git /build/misc/pyinstaller && \
-    cd /build/misc/pyinstaller/bootloader && \
-    python waf all --gcc && \
-    cd .. && \
-    pip install .
+RUN cd /build && \
+    ./misc/build_scripts/linux/pyinstaller.sh
 
 # Build
 RUN mkdir -p /export

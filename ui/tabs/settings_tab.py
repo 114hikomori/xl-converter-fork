@@ -32,6 +32,7 @@ from ui.lib.utils import setToolTip, openLocalUrl, createQHBoxLayout, blockSigna
 from ui.theme import setTheme
 from ui.widgets import ScrollArea, SpinBox, ComboBox
 from ui.dialogs import message_box
+import data.process_manager as process_manager
 
 @dataclass(frozen=True)
 class StockPresets:
@@ -65,7 +66,7 @@ class SettingsTab(QWidget):
         self.setupWidgets()
         self.setupLayouts()
         self.setupSignals()
-        self.setSizes()
+        self.setStyles()
         self.setToolTips()
 
         # Init states
@@ -167,6 +168,7 @@ class SettingsTab(QWidget):
         self.jxl_effort_10_cb = self.wm.addWidget("jxl_effort_10_cb", QCheckBox("JPEG XL - Enable Effort 10", self))
         self.jxl_int_effort_cb = self.wm.addWidget("jxl_int_effort_cb", QCheckBox("JPEG XL - Allow Intelligent Effort (Deprecated)"))
         self.custom_resampling_cb = self.wm.addWidget("custom_resampling_cb", QCheckBox("Downscaling - Custom Resampling", self))
+        self.png_opt_pixel_format_cb = self.wm.addWidget("png_opt_pixel_format_cb", QCheckBox("PNG Optimization - Optimize Pixel Format"))
         self.custom_args_cb = self.wm.addWidget("custom_args_cb", QCheckBox("Additional Encoder Arguments"))
         self.avifenc_args_l = QLabel("avifenc\nAVIF")
         self.avifenc_args_te = self.wm.addWidget("avifenc_args_te", QTextEdit())
@@ -192,6 +194,8 @@ class SettingsTab(QWidget):
         self.open_log_dir_btn = self.wm.addWidget("open_log_dir_btn", QPushButton("Open Logs Folder"))
         self.wipe_log_dir_btn = self.wm.addWidget("wipe_log_dir_btn", QPushButton("Wipe Logs Folder"))
         self.start_logging_btn.setCheckable(True)
+        self.process_priority_l = self.wm.addWidget("process_priority_l", QLabel("Process Priority"))
+        self.process_priority_cmb = self.wm.addWidget("process_priority_cmb", ComboBox(("Normal", "Below Normal", "Idle")))
 
         # Categories
         self.general_btn = QPushButton("General")
@@ -258,6 +262,7 @@ class SettingsTab(QWidget):
         self.settings_lt.addWidget(self.jxl_effort_10_cb)
         self.settings_lt.addWidget(self.jxl_int_effort_cb)
         self.settings_lt.addWidget(self.custom_resampling_cb)
+        self.settings_lt.addWidget(self.png_opt_pixel_format_cb)
         self.settings_lt.addWidget(self.custom_args_cb)
         self.settings_lt.addLayout(createQHBoxLayout(self.cjxl_args_l, self.cjxl_args_te))
         self.settings_lt.addLayout(createQHBoxLayout(self.avifenc_args_l, self.avifenc_args_te))
@@ -267,27 +272,15 @@ class SettingsTab(QWidget):
         self.settings_lt.addLayout(createQHBoxLayout(self.pngquant_args_l, self.pngquant_args_te))
         self.processing_order_hb = createQHBoxLayout(self.processing_order_l, self.processing_order_cmb)
         self.settings_lt.addLayout(self.processing_order_hb)
+        self.process_priority_hb = createQHBoxLayout(self.process_priority_l, self.process_priority_cmb)
+        self.settings_lt.addLayout(self.process_priority_hb)
         self.settings_lt.addLayout(createQHBoxLayout(self.start_logging_btn, self.open_log_dir_btn, self.wipe_log_dir_btn))
 
         # All
         self.settings_lt.addStretch()
 
-    def setSizes(self):
-        self.play_sound_on_finish_vol_sb.setStyleSheet("min-width: 90px;")   # In the newer Qt 6.8 vs 6.6, setting size of this widget does not work unless done this way.
-
-        for label in (
-            self.exiftool_wipe_l,
-            self.exiftool_preserve_l,
-            self.exiftool_unsafe_wipe_l,
-            self.exiftool_custom_l,
-            self.avifenc_args_l,
-            self.cjpegli_args_l,
-            self.cjxl_args_l,
-            self.im_args_l,
-            self.oxipng_args_l,
-            self.pngquant_args_l,
-        ):
-            label.setMinimumWidth(90)
+    def setStyles(self):
+        self.play_sound_on_finish_vol_sb.setProperty("class", "min_width_sb")
 
         for hbox in (
             self.jpg_encoder_hb,
@@ -298,21 +291,32 @@ class SettingsTab(QWidget):
             self.theme_hb,
             self.ram_optimizer_hb,
             self.processing_order_hb,
+            self.process_priority_hb,
             # self.avif_aom_tune_hb,
         ):
             hbox.setAlignment(Qt.AlignLeft)
+
+        self.exiftool_wipe_l.setProperty("class", "min_width_l")
+        self.exiftool_preserve_l.setProperty("class", "min_width_l")
+        self.exiftool_unsafe_wipe_l.setProperty("class", "min_width_l")
+        self.exiftool_custom_l.setProperty("class", "min_width_l")
+
+        self.avifenc_args_l.setProperty("class", "min_width_l")
+        self.cjpegli_args_l.setProperty("class", "min_width_l")
+        self.cjxl_args_l.setProperty("class", "min_width_l")
+        self.im_args_l.setProperty("class", "min_width_l")
+        self.oxipng_args_l.setProperty("class", "min_width_l")
+        self.pngquant_args_l.setProperty("class", "min_width_l")
         
-        for cmb in (
-            self.jpg_encoder_cmb,
-            self.avif_encoder_cmb,
-            self.png_encoder_cmb,
-            self.avif_bit_depth_cmb,
-            self.theme_cmb,
-            self.ram_optimizer_cmb,
-            self.processing_order_cmb,
-            # self.avif_aom_tune_cmb,
-        ):
-            cmb.setMinimumWidth(150)
+        self.jpg_encoder_cmb.setProperty("class", "min_width_cmb")
+        self.avif_encoder_cmb.setProperty("class", "min_width_cmb")
+        self.png_encoder_cmb.setProperty("class", "min_width_cmb")
+        self.avif_bit_depth_cmb.setProperty("class", "min_width_cmb")
+        self.theme_cmb.setProperty("class", "min_width_cmb")
+        self.ram_optimizer_cmb.setProperty("class", "min_width_cmb")
+        self.processing_order_cmb.setProperty("class", "min_width_cmb")
+        self.process_priority_cmb.setProperty("class", "min_width_cmb")
+        # self.avif_aom_tune_cmb.setProperty("class", "min_width_cmb")
 
     def setupSignals(self):
         self.custom_args_cb.toggled.connect(self.onCustomArgsToggled)
@@ -335,6 +339,7 @@ class SettingsTab(QWidget):
         self.theme_cmb.currentTextChanged.connect(self.onThemeChanged)
         self.ram_optimizer_rules_reset_btn.clicked.connect(self.resetOptimizationRules)
         self.ram_optimizer_cmb.currentTextChanged.connect(self.onRamOptimizerChanged)
+        self.process_priority_cmb.currentTextChanged.connect(self.onProcessPriorityChanged)
 
         self.general_btn.clicked.connect(lambda: self.changeCategory("General"))
         self.exiftool_btn.clicked.connect(lambda: self.changeCategory("ExifTool"))
@@ -365,7 +370,9 @@ class SettingsTab(QWidget):
         setToolTip("avif_aom_iq_tune", self.avif_aom_iq_tune_cb)
         setToolTip("ram_optimizer", self.ram_optimizer_cmb)
         setToolTip("ram_optimizer_rules", self.ram_optimizer_rules_te)
+        setToolTip("png_opt_pixel_format", self.png_opt_pixel_format_cb)
         setToolTip("processing_order", self.processing_order_cmb)
+        setToolTip("process_priority", self.process_priority_cmb)
 
     def changeCategory(self, category):
         # Category buttons
@@ -410,6 +417,7 @@ class SettingsTab(QWidget):
                 "jxl_int_effort_cb",
                 "jxl_effort_10_cb",
                 "custom_resampling_cb",
+                "png_opt_pixel_format_cb",
                 "custom_args_cb",
                 "avifenc_args_l", "avifenc_args_te",
                 "cjxl_args_l", "cjxl_args_te",
@@ -418,6 +426,7 @@ class SettingsTab(QWidget):
                 "oxipng_args_l", "oxipng_args_te",
                 "pngquant_args_l", "pngquant_args_te",
                 "processing_order_l", "processing_order_cmb",
+                "process_priority_l", "process_priority_cmb",
                 "start_logging_btn", "open_log_dir_btn", "wipe_log_dir_btn",
             ],
         }
@@ -487,6 +496,24 @@ class SettingsTab(QWidget):
         self.ram_optimizer_rules_l.setEnabled(dynamic_ram_optimizer)
         self.ram_optimizer_rules_reset_btn.setEnabled(dynamic_ram_optimizer)
 
+    def onProcessPriorityChanged(self) -> None:
+        priority = self.process_priority_cmb.currentText()
+        match priority:
+            case "Normal":
+                process_manager.ProcessPriorityManager.setPriority(
+                    process_manager.ProcessPriority.NORMAL
+                )
+            case "Below Normal":
+                process_manager.ProcessPriorityManager.setPriority(
+                    process_manager.ProcessPriority.BELOW_NORMAL
+                )
+            case "Idle":
+                process_manager.ProcessPriorityManager.setPriority(
+                    process_manager.ProcessPriority.IDLE
+                )
+            case _:
+                logging.error(f"[onProcessPriorityChanged] Unmapped priority ({priority})")
+
     def enableLogging(self) -> None:
         if not self.logging_manager.isLoggingToFile():
             self.logging_manager.startLoggingToFile("INFO")
@@ -553,6 +580,7 @@ class SettingsTab(QWidget):
             "avif_bit_depth": self.avif_bit_depth_cmb.currentText(),
             "avif_aom_iq_tune": self.avif_aom_iq_tune_cb.isChecked(),
             "processing_order": self.processing_order_cmb.currentText(),
+            "png_opt_pixel_format": self.png_opt_pixel_format_cb.isChecked(),
         }
     
     def resetExifTool(self, reset_custom=False):
@@ -591,6 +619,7 @@ class SettingsTab(QWidget):
         self.ram_optimizer_cmb.setCurrentIndex(0)
         self.resetOptimizationRules()
         self.jxl_int_effort_cb.setChecked(False)
+        self.png_opt_pixel_format_cb.setChecked(False)
         self.resetExifTool()
         self.processing_order_cmb.setCurrentIndex(0)
         self.custom_args_cb.setChecked(False)
@@ -600,6 +629,7 @@ class SettingsTab(QWidget):
         self.avifenc_args_te.clear()
         self.oxipng_args_te.clear()
         self.pngquant_args_te.clear()
+        self.process_priority_cmb.setCurrentIndex(0)
     
     def saveState(self, new_states: Optional[Dict] = None) -> None:
         if new_states is None or new_states != self.cached_states:

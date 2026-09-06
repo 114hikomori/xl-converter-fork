@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-OXIPNG_TAG="v9.1.5"
+OXIPNG_TAG="v10.2.0"
 
 RUN_DIR=$(pwd)
 OUTPUT_DIR="${RUN_DIR}/bin/win/oxipng"
@@ -8,9 +9,8 @@ TEMP_DIR=$(mktemp -d)
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
 source "${SCRIPT_DIR}/_shared.sh"
-
 trap 'cleanup "${TEMP_DIR}"' EXIT
-set -euo pipefail
+
 check_msys2
 check_packages \
     git \

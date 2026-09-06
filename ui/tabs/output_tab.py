@@ -68,9 +68,7 @@ class OutputTab(QWidget):
         self.onQualityPrecisionSnappingEnabled(settings["enable_quality_precision_snapping"])
 
         self._onFormatChange()
-        self._onDeleteOriginalChanged()
         self._onJXLNormalizeToggled()
-        self._onOutputToggled()
         self._onSmLBitDepthChanged()
 
         # Variables
@@ -108,6 +106,7 @@ class OutputTab(QWidget):
             "Lossless JPEG Transcoding",
             "JPEG Reconstruction",
             "Smallest Lossless",
+            "PNG Optimization",
             "Same Format",
         )))
         self.effort_l = self.wm.addWidget("effort_l", QLabel("Effort"), "effort")
@@ -166,6 +165,7 @@ class OutputTab(QWidget):
         self.jxl_verify_cb = self.wm.addWidget("jxl_verify_cb", QCheckBox("Verify"))
         self.jxl_normalize_enable_cb = self.wm.addWidget("jxl_normalize_enable_cb", QCheckBox("Normalize"))
         self.jxl_normalize_when_cmb = self.wm.addWidget("jxl_normalize_when_cmb", ComboBox(("On Fail", "Always")))  # There is a quirk / bug in Qt which causes the popup opened by this specific widget in this particular layout combination on Windows to shrink. Overriding `showPopup` fixed it in Qt 6.6 but Qt 6.8 broke it.
+        self.png_opt_inplace_cb = self.wm.addWidget("png_opt_inplace_cb", QCheckBox("In-place"))
 
         # Buttons
         self.reset_to_default_btn = QPushButton("Reset to Defaults")
@@ -175,7 +175,8 @@ class OutputTab(QWidget):
         # Conversion
         self.conv_grp = QGroupBox("Conversion")
         self.conv_grp_lt = QVBoxLayout(self.conv_grp)
-        self.conv_grp_lt.addLayout(createQHBoxLayout(QLabel("If Output Exists"), self.duplicates_cmb))
+        self.duplicates_l = QLabel("If Output Exists")
+        self.conv_grp_lt.addLayout(createQHBoxLayout(self.duplicates_l, self.duplicates_cmb))
         self.conv_grp_lt.addLayout(createQHBoxLayout(QLabel("Threads"), self.threads_sl, self.threads_sb))
 
         # After conversion
@@ -212,6 +213,7 @@ class OutputTab(QWidget):
         self.format_grp_lt.addWidget(self.jxl_png_fallback_cb)
         self.format_grp_lt.addLayout(createQHBoxLayout(self.jxl_normalize_enable_cb, self.jxl_normalize_when_cmb))
         self.format_grp_lt.addWidget(self.jxl_verify_cb)
+        self.format_grp_lt.addWidget(self.png_opt_inplace_cb)
 
         self.smallest_lossless_bit_depth_l.setMaximumHeight(13)
 
@@ -232,13 +234,15 @@ class OutputTab(QWidget):
         self.after_conv_grp.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.output_grp.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.format_cmb.setMinimumWidth(220)
+        self.threads_sb.setFixedWidth(55)
+        self.quality_sb.setFixedWidth(55)
 
     def _setupSignals(self):
         self.threads_sl.valueChanged.connect(lambda n: self.threads_sb.setValue(n))
         self.threads_sb.valueChanged.connect(lambda n: self.threads_sl.setValue(n))
-        self.delete_original_cb.stateChanged.connect(self._onDeleteOriginalChanged)
-        self.choose_output_ct_btn.clicked.connect(self._chooseOutput)        
-        self.choose_output_ct_rb.toggled.connect(self._onOutputToggled)
+        self.delete_original_cb.stateChanged.connect(self._updateOutputStates)
+        self.choose_output_ct_btn.clicked.connect(self._chooseOutput)
+        self.choose_output_ct_rb.toggled.connect(self._updateOutputStates)
         self.format_cmb.currentIndexChanged.connect(self._onFormatChange)
         self.format_cmb.currentTextChanged.connect(self.file_format_changed)
         self.int_effort_cb.toggled.connect(self._onEffortToggled)
@@ -251,6 +255,7 @@ class OutputTab(QWidget):
         self.jxl_normalize_enable_cb.toggled.connect(self._onJXLNormalizeToggled)
         self.jxl_normalize_enable_cb.clicked.connect(self._onJXLNormalizeClicked)
         self.smallest_lossless_webp_cb.toggled.connect(self._onSmLBitDepthChanged)
+        self.png_opt_inplace_cb.toggled.connect(self._updateOutputStates)
 
     def _setToolTipsStatic(self):
         """Sets tooltips at once at startup."""
@@ -276,6 +281,7 @@ class OutputTab(QWidget):
         setToolTip("smallest_lossless_jpeg_xl", self.smallest_lossless_jxl_cb)
         setToolTip("smallest_lossless_max_comp", self.max_compression_cb)
         setToolTip("same_format", self.sf_preset_l)
+        setToolTip("png_opt_inplace", self.png_opt_inplace_cb)
 
     def _setToolTipsDynamic(self):
         """Sets tooltips. Their content can change."""
@@ -317,6 +323,8 @@ class OutputTab(QWidget):
                         setToolTip("quality_webp", self.sf_webp_q_sb)
                         setToolTip("quality_avif", self.sf_avif_q_sb)
                         setToolTip("quality_jpeg", self.sf_jpeg_q_sb)
+            case "PNG Optimization":
+                setToolTip("png_opt_level", self.effort_sb)
 
     # //////////////////////////////////////////////////////////
     # /                      Getters
@@ -336,14 +344,14 @@ class OutputTab(QWidget):
         return empty
 
     def getSettings(self):
-        return {
+        settings = {
             "format": self.format_cmb.currentText(),
             "quality": self.quality_sb.value(),
             "lossless": self.lossless_cb.isChecked(),
             "max_compression": self.max_compression_cb.isChecked(),
             "effort": self.effort_sb.value(),
             "intelligent_effort": self.int_effort_cb.isChecked() if self.jxl_int_effort_visible else False,
-            "jxl_modular": self.jxl_modular_cb.isChecked() if self.jxl_lossy_modular_visible else False,
+            "jxl_modular": self.jxl_modular_cb.isChecked() if self.jxl_lossy_modular_visible and not self.lossless_cb.isChecked() else False,
             "jxl_verify": self.jxl_verify_cb.isChecked(),
             "jxl_normalize_enable": self.jxl_normalize_enable_cb.isChecked(),
             "jxl_normalize_when": self.jxl_normalize_when_cmb.currentText(),
@@ -370,7 +378,21 @@ class OutputTab(QWidget):
                 ext: self.sf_jpeg_route_cmb.currentText() for ext in JPEG_ALIASES
             },
             "same_format_settings": self._getSameFormatSettings(),
+            "png_opt_inplace": (
+                self.format_cmb.currentText() == "PNG Optimization" and
+                self.png_opt_inplace_cb.isChecked()
+            ),
         }
+
+        if (
+            self.format_cmb.currentText() == "PNG Optimization" and
+            self.png_opt_inplace_cb.isChecked()
+        ):
+            settings["if_file_exists"] = "Replace"
+            settings["custom_output_dir"] = False
+            settings["delete_original"] = False
+
+        return settings
 
     # //////////////////////////////////////////////////////////
     # /                      Handlers
@@ -392,11 +414,6 @@ class OutputTab(QWidget):
             self.wm.setVar("choose_output_last_dir", dlg.directory().absolutePath())
             self.choose_output_ct_le.setText(dlg.selectedFiles()[0])
 
-    def _onOutputToggled(self):
-        src_checked = self.choose_output_src_rb.isChecked()
-        self.wm.setEnabledByTag("output_ct", not src_checked)
-        self.keep_dir_struct_cb.setEnabled(not src_checked)
-        
     def _onFormatChange(self):
         self._saveFormatVars()
         
@@ -406,7 +423,7 @@ class OutputTab(QWidget):
         # Visible
         self.wm.setVisibleByTag("quality_all", cur_format in ("JPEG XL", "AVIF", "WebP", "JPEG") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.int_effort_cb.setVisible(cur_format == "JPEG XL" and self.jxl_int_effort_visible)
-        self.wm.setVisibleByTag("effort", cur_format in ("JPEG XL", "AVIF", "WebP", "Lossless JPEG Transcoding", "Same Format"))
+        self.wm.setVisibleByTag("effort", cur_format in ("JPEG XL", "AVIF", "WebP", "Lossless JPEG Transcoding", "PNG Optimization", "Same Format"))
         self.wm.setVisibleByTag("jxl_losssy_modular", cur_format == "JPEG XL" and self.jxl_lossy_modular_visible)
         self.wm.setVisibleByTag("lossless", cur_format in ("JPEG XL", "WebP") or (cur_format == "PNG" and self.png_encoder != "Legacy (ImageMagick)"))
         self.wm.setVisibleByTag("smallest_lossless", cur_format == "Smallest Lossless")
@@ -421,6 +438,7 @@ class OutputTab(QWidget):
         self.jxl_verify_cb.setVisible(cur_format == "Lossless JPEG Transcoding")
         self.jxl_normalize_enable_cb.setVisible(cur_format == "Lossless JPEG Transcoding")
         self.jxl_normalize_when_cmb.setVisible(cur_format == "Lossless JPEG Transcoding")
+        self.png_opt_inplace_cb.setVisible(cur_format == "PNG Optimization")
 
         # Params
         if cur_format == "AVIF":
@@ -432,6 +450,9 @@ class OutputTab(QWidget):
         elif cur_format == "WebP":
             self.effort_sb.setRange(0, 6)
             self.effort_l.setText("Method")
+        elif cur_format == "PNG Optimization":
+            self.effort_sb.setRange(0, 9)
+            self.effort_l.setText("Level")
 
         if cur_format in ("JPEG XL", "AVIF"):
             self._setQualityRange(0, 99)
@@ -444,12 +465,9 @@ class OutputTab(QWidget):
         self.wm.setCheckedByTag("lossless", False)
         self.effort_sb.setEnabled(cur_format in ("JPEG XL", "AVIF", "WebP", "Lossless JPEG Transcoding"))
         self._onEffortToggled()  # It's very important to update int_effort_cb to avoid issues when changing formats while it's enabled
-
+        self._updateOutputStates()
         self._loadFormatVars()
         self._setToolTipsDynamic()
-    
-    def _onDeleteOriginalChanged(self):
-        self.delete_original_cmb.setEnabled(self.delete_original_cb.isChecked())
 
     def _onEffortToggled(self):
         if self.format_cmb.currentText() == "JPEG XL" and self.jxl_int_effort_visible:
@@ -553,6 +571,23 @@ class OutputTab(QWidget):
             self.chroma_subsampling_svt_av1_psy_cmb.setVisible(encoder == "SVT-AV1-PSY")
             self.chroma_subsampling_aom_av1_cmb.setVisible(encoder == "AOM AV1")
 
+    def _updateOutputStates(self) -> None:
+        inplace = self.format_cmb.currentText() == "PNG Optimization" and self.png_opt_inplace_cb.isChecked()
+
+        self.output_grp.setDisabled(inplace)
+        if not inplace:
+            src_checked = self.choose_output_src_rb.isChecked()
+            self.wm.setEnabledByTag("output_ct", not src_checked)
+            self.keep_dir_struct_cb.setEnabled(not src_checked)
+
+        self.duplicates_l.setDisabled(inplace)
+        self.duplicates_cmb.setDisabled(inplace)
+
+        self.delete_original_cb.setDisabled(inplace)
+        self.delete_original_cmb.setEnabled(
+            self.delete_original_cb.isChecked() and not inplace
+        )
+
     # //////////////////////////////////////////////////////////
     # /                   Actions / Utils
     # //////////////////////////////////////////////////////////
@@ -587,6 +622,8 @@ class OutputTab(QWidget):
                 self.sf_jpeg_route_cmb.setCurrentIndex(0)
             case "Lossless JPEG Transcoding":
                 self.effort_sb.setValue(7)
+            case "PNG Optimization":
+                self.effort_sb.setValue(2)
         
         self.int_effort_cb.setChecked(False)
         self.jxl_modular_cb.setChecked(False)
@@ -614,6 +651,7 @@ class OutputTab(QWidget):
             i.setChecked(True)
         
         self.jxl_png_fallback_cb.setChecked(False)
+        self.png_opt_inplace_cb.setChecked(False)
 
     def _setQualityRange(self, _min: int, _max: int) -> None:
         for i in self.wm.getWidgetsByTag("quality"):
@@ -653,6 +691,8 @@ class OutputTab(QWidget):
                 self.wm.setVar("sf_jpeg_quality", self.sf_jpeg_q_sb.value())
             case "Lossless JPEG Transcoding":
                 self.wm.setVar("jxl_lossless_jpeg_effort", self.effort_sb.value())
+            case "PNG Optimization":
+                self.wm.setVar("oxipng_level", self.effort_sb.value())
 
     def _loadFormatVars(self):
         match self.prev_format:
@@ -685,6 +725,8 @@ class OutputTab(QWidget):
                     self.sf_jpeg_route_cmb.setCurrentText(sf_route)
             case "Lossless JPEG Transcoding":
                 self.wm.applyVar("jxl_lossless_jpeg_effort", "effort_sb", 7)
+            case "PNG Optimization":
+                self.wm.applyVar("oxipng_level", "effort_sb", 2)
 
     def saveState(self, new_states: Optional[Dict] = None) -> None:
         if new_states is None or new_states != self.cached_states:

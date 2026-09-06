@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox
 from PySide6.QtCore import Qt
 
 from ui.tabs.settings_tab import SettingsTab, STOCK_PRESETS
+import data.process_manager as process_manager
 
 @pytest.fixture
 def app(qtbot):
@@ -14,7 +15,7 @@ def app(qtbot):
         patch("ui.tabs.settings_tab.WidgetManager.loadState"),
         patch("ui.tabs.settings_tab.WidgetManager.saveState"),
         patch("ui.tabs.settings_tab.setTheme"),
-        patch.object(SettingsTab, "runMigrations"),
+        patch.object(SettingsTab, "runMigrations", autospec=True),
     ):
         tab = SettingsTab()
         qtbot.addWidget(tab)
@@ -28,7 +29,7 @@ def app_migrations(qtbot):
         patch("ui.tabs.settings_tab.WidgetManager.saveState"),
         patch("ui.tabs.settings_tab.setTheme"),
     ):
-        with patch.object(SettingsTab, "runMigrations"):    # Prevents running in __init__
+        with patch.object(SettingsTab, "runMigrations", autospec=True):    # Prevents running in __init__
             tab = SettingsTab()
             qtbot.addWidget(tab)
         return tab
@@ -74,6 +75,7 @@ def test_changeCategory_visibility(category, button, app):
             "jxl_int_effort_cb",
             "jxl_effort_10_cb",
             "custom_resampling_cb",
+            "png_opt_pixel_format_cb",
             "custom_args_cb",
             "avifenc_args_l", "avifenc_args_te",
             "cjxl_args_l", "cjxl_args_te",
@@ -82,6 +84,7 @@ def test_changeCategory_visibility(category, button, app):
             "oxipng_args_l", "oxipng_args_te",
             "pngquant_args_l", "pngquant_args_te",
             "processing_order_l", "processing_order_cmb",
+            "process_priority_l", "process_priority_cmb",
             "start_logging_btn", "open_log_dir_btn", "wipe_log_dir_btn",
         ],
     }
@@ -98,6 +101,11 @@ def test_changeCategory_visibility(category, button, app):
             assert False, f"Widget not found ({widget_str})"
         assert widget_p.isVisibleTo(app) == ( widget_str in visibility[category] ), \
             f"Expected {widget_str in visibility[category]} got {widget_p.isVisibleTo(app)} ({widget_str})"
+
+def test_getSettings_png_opt_pixel_format(app):
+    assert app.getSettings()["png_opt_pixel_format"] is False
+    app.png_opt_pixel_format_cb.setChecked(True)
+    assert app.getSettings()["png_opt_pixel_format"] is True
 
 @pytest.mark.parametrize("signal_attr, widget_attr", [
     ("custom_resampling_toggled", "custom_resampling_cb"),
@@ -176,6 +184,32 @@ def test_onThemeChanged(app):
     ):
         app.onThemeChanged()
         mock_setTheme.assert_called_once_with(mock_currentText.return_value)
+
+@pytest.mark.parametrize(
+    "priority_str, expected_enum",
+    [
+        ("Normal", process_manager.ProcessPriority.NORMAL),
+        ("Below Normal", process_manager.ProcessPriority.BELOW_NORMAL),
+        ("Idle", process_manager.ProcessPriority.IDLE),
+    ]
+)
+def test_onProcessPriorityChanged_valid_values(priority_str, expected_enum, app):
+    with (
+        patch.object(app.process_priority_cmb, "currentText", return_value=priority_str),
+        patch("ui.tabs.settings_tab.process_manager.ProcessPriorityManager.setPriority") as mock_setPriority,
+    ):
+        app.onProcessPriorityChanged()
+        mock_setPriority.assert_called_once_with(expected_enum)
+
+def test_onProcessPriorityChanged_invalid_value(app, caplog):
+    with (
+        patch.object(app.process_priority_cmb, "currentText", return_value="Unsupported"),
+        patch("ui.tabs.settings_tab.process_manager.ProcessPriorityManager.setPriority") as mock_setPriority,
+        caplog.at_level(logging.ERROR),
+    ):
+        app.onProcessPriorityChanged()
+        assert "Unmapped priority" in caplog.text
+        mock_setPriority.assert_not_called()
 
 @pytest.mark.parametrize("currently_logging", [True, False])
 def test_enableLogging(currently_logging, app):
@@ -312,11 +346,13 @@ def test_resetToDefault(app):
     assert app.disable_progressive_jpegli_cb.isChecked() == False
 
     assert app.jxl_int_effort_cb.isChecked() == False
+    assert app.png_opt_pixel_format_cb.isChecked() == False
     assert app.custom_args_cb.isChecked() == False
     assert app.cjxl_args_te.toPlainText() == ""
     assert app.cjpegli_args_te.toPlainText() == ""
     assert app.im_args_te.toPlainText() == ""
     assert app.avifenc_args_te.toPlainText() == ""
+    assert app.process_priority_cmb.currentIndex() == 0
 
 def test_runMigrations_no_loaded_ver(app_migrations):
     with (

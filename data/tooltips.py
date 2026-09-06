@@ -26,6 +26,13 @@ Always - all sources will be normalized.""",
     "int_effort": "Prioritizes smaller file size.\n\nAlternates between Effort 7 and 9 based on context.\n\nLossless and Lossy (Modular) - Effort 9\n\nLossy (VarDCT) - smallest out of Effort 7 and 9.",
     "effort": "Higher means better quality and/or smaller file size but slower.\n\nLossy: higher values result in higher quality. File size may end up larger, especially for non-photographic images.\n\nLossless and Lossy Modular: higher values always result in lower file size.\n\n7 - normal speed with a modest file size.\n\n9 - very slow, but the produces lowest file size or better quality.\n\nTip: Use Effort 7 for big images as it features streaming encoding.",
     "effort_jpeg_recomp": "Higher values result in lower file size and slower transcoding.\n\n7 - normal speed with a modest file size.\n\n9 - very slow, but produces the lowest file size.",
+    "png_opt_level": """Higher levels offer better compression, but take longer.
+
+2 - fast, fair compression ratio.
+
+4 - slower, great compression ratio.
+
+Levels higher than 4 offer marginal returns.""",
     "speed": "Lower is better quality but slower." ,
     "method": "Higher means better quality and/or smaller file size.\n\nLossless: higher values result in lower file size.\n\nLossy: higher value result in lower file size and typically higher quality. The latter can be subjective.\n\nTypical values: 4 - 6",
     "chroma_subsampling_jpeg": "Controls color compression. Lower number means less color information and smaller file size.\n\nDefault - matches the input or 4:4:4\n\n4:4:4 - full color, the highest quality and file size\n\n4:2:2 - less color (small visual difference) and significant space-saving\n\n4:2:0 - colors may appear washed out",
@@ -39,10 +46,12 @@ Always - all sources will be normalized.""",
     "smallest_lossless_webp": "Supported bit depth: 8",
     "smallest_lossless_jpeg_xl": "Supported bit depth: 16",
     "smallest_lossless_max_comp": "Results in a lower file size and slower transcoding.",
+    "png_opt_inplace": "Replaces the original file with an optimized version.",
 
     # Modify tab
     "keep_timestamps": """Preserves original date & time file attributes.""",
     "metadata": "Controls how metadata is handled.\n\nEncoder modes are faster and recommended. ExifTool is more thorough but more error-prone.\n\nEncoder - Wipe - wipes metadata. Works well for encoding everything except PNG, where it depends on the input format.\n\nEncoder - Preserve - preserves metadata. Works on common input formats, may not work for less popular ones.\n\nExifTool - Wipe - Deletes all metadata except orientation, and color profile.\n\nExifTool - Preserve - preserves all metadata.\n\nExifTool - Unsafe Wipe - deletes every last bit of metadata, including color profile. It can potentially alter the final image, but is the most effective.\n\nExifTool - Custom - empty. It allows you to specify custom behavior (in the settings).\n\nView and edit ExifTool commands in the settings (Settings -> ExifTool -> ExifTool Arguments).",
+    "png_opt_metadata": "Preserves metadata chunks.",
     "downscaling": "Scales down the resolution of your image.",
     "downscaling_resolution_width_enabled": "Checked - restricts width to a given amount of pixels.\n\nUnchecked - imposes no restrictions on width. Disables downscaling for this dimension.",
     "downscaling_resolution_height_enabled": "Checked - restricts height to a given amount of pixels.\n\nUnchecked - imposes no restrictions on height. Disables downscaling for this dimension.",
@@ -87,6 +96,11 @@ The default lets ImageMagick choose -- using Lanczos for images without transpar
 
 Changing resampling can worsen the quality. Make sure you know what you are doing.""",
     "jxl_int_effort": "Shows or hides the JPEG XL Intelligent Effort option in the Output tab.\n\nThis functionality picks Effort based on context.\n\nIt aimed at providing lower file size but made only a marginal difference.\n\nThis feature will be removed in the future.",
+    "png_opt_pixel_format": """Enables changing bit depth and color type to increase compression.
+
+Images will remain visually lossless.
+
+Color palettes are never indexed regardless of this option's state.""",
     "exiftool_args": "Arguments used for handling metadata, correspond to the options is the modify tab.\n\nSupported variables:\n\n$src - source image path.\n\n$dst - destination image path.\n\nRemember to add \"-overwrite_original\" to avoid leftover files.",
     "encoder_args": "Additional arguments for the encoders.\n\nAll arguments must be valid and can not conflict with already used ones. Inspect logs for more details.",
     "processing_order": """Controls the processing order.
@@ -96,4 +110,11 @@ Random - random order; more accurate estimated time left.
 Sequential - sorted by path; less fragmentation on HDDs; less accurate estimated time left.
 
 Total processing time remains the same.""",
+    "process_priority": """Controls the priority of transcoding processes. Lower priority means slower transcoding, but more responsive system.
+
+Normal - system default.
+
+Below Normal - delegates transcoding to the background.
+
+Idle - lowest priority.""",
 }

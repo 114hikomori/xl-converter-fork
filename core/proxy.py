@@ -16,15 +16,17 @@ from core.pathing import getUniqueTmpFilePath
 from core.convert import getDecoder, runBinary
 from core.exceptions import FileException
 
+logger = logging.getLogger(__name__)
+
 class Proxy():
     def __init__(self):
         self.proxy_path = None
 
-    def isProxyNeeded(self, _format: str, src_ext: str, jpegli: bool = False, downscaling_enabled: bool = False) -> bool:
-        if _format == "Smallest Lossless":
+    def isProxyNeeded(self, file_format: str, src_ext: str, jpegli: bool = False, downscaling_enabled: bool = False) -> bool:
+        if file_format == "Smallest Lossless":
             return True
 
-        if _format == "PNG":
+        if file_format == "PNG":
             return False
 
         if downscaling_enabled:
@@ -33,10 +35,10 @@ class Proxy():
             else:
                 return True
 
-        match _format:
+        match file_format:
             case "JPEG XL":
                 if src_ext in ALLOWED_INPUT_CJXL:
-                    return False          
+                    return False
             case "AVIF":
                 if src_ext in ALLOWED_INPUT_AVIFENC:
                     return False
@@ -54,8 +56,10 @@ class Proxy():
                 return False
             case "JPEG Reconstruction":
                 return False
+            case "PNG Optimization":
+                return False
             case _:
-                raise FileException("Proxy0", f"Unrecognized format ({_format})")
+                raise FileException("Proxy0", f"Unrecognized format ({file_format})")
         
         return True
 
@@ -83,12 +87,18 @@ class Proxy():
     def proxyExists(self) -> bool:
         return self.proxy_path is not None
 
-    def cleanup(self) -> None:
+    def cleanUp(self, raising: bool = True) -> None:
         """Delete a proxy If one exists."""
-        if self.proxy_path is not None:
-            try:
+        if self.proxy_path is None:
+            return
+
+        try:
+            if os.path.isfile(self.proxy_path):     # In case path was assigned but no output was generated.
                 os.remove(self.proxy_path)
-            except OSError as e:
+        except OSError as e:
+            if raising:
                 raise FileException("Proxy2", f"Failed to clean up proxy. {e}")
-            finally:
-                self.proxy_path = None
+            else:
+                logger.error(f"Failed to clean up proxy. {e}")
+        finally:
+            self.proxy_path = None

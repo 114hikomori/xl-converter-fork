@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-LIBAVIF_TAG="v1.3.0"
-LIBYUV_COMMIT="4db2af62d"        # Update this commit hash when changing LIBAVIF_TAG. It can be found in libavif/ext/libyuv.cmd
-LIBXML2_TAG="v2.14.4"            # libavif/ext/libxml2.cmd
-AOM_AV1_TAG="v3.13.1"
+LIBAVIF_TAG="v1.4.2"
+LIBYUV_COMMIT="644251f25"        # Update this commit hash when changing LIBAVIF_TAG. It can be found in libavif/ext/libyuv.cmd
+LIBXML2_TAG="v2.15.3"            # libavif/ext/libxml2.cmd
+AOM_AV1_TAG="v3.14.1"
 SVT_AV1_PSY_TAG="v3.0.2"
 
 RUN_DIR=$(pwd)
-OUTPUT_DIR="${RUN_DIR}/bin/macos/libavif"
+OUTPUT_DIR="${RUN_DIR}/bin/macos"
 TEMP_DIR=$(mktemp -d)
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -22,7 +22,7 @@ check_packages \
     jpeg-turbo \
     cmake \
     make \
-    nasm \
+    yasm \
     webp \
     zlib \
     libpng \
@@ -38,11 +38,12 @@ cd libavif/ext/
 # Build aom
 git clone -b "${AOM_AV1_TAG}" --depth 1 https://aomedia.googlesource.com/aom aom
 for arch in x86_64 arm64; do
-    cmake_args=(
+    cmake_flags=(
         -G Ninja
         -S aom
         -B "aom/build.libaom.${arch}"
         -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+        -DCMAKE_OSX_ARCHITECTURES="${arch}"
         -DAOM_TARGET_CPU="${arch}"
         -DCMAKE_C_COMPILER="/opt/local/bin/clang-mp-17"
         -DCMAKE_CXX_COMPILER="/opt/local/bin/clang++-mp-17"
@@ -54,16 +55,17 @@ for arch in x86_64 arm64; do
         -DENABLE_TESTDATA=0
         -DENABLE_TESTS=0
         -DENABLE_TOOLS=0
+        -DCMAKE_ASM_NASM_COMPILER="$(which yasm)"
     )
 
-    if [ "${arch}" = "arm64" ]; then
-        cmake_args+=(
-            -DCMAKE_C_FLAGS="-arch arm64"
-            -DCMAKE_CXX_FLAGS="-arch arm64"
+    if [ "${arch}" = "x86_64" ]; then
+        cmake_flags+=(
+            -DCMAKE_TOOLCHAIN_FILE="${TEMP_DIR}/libavif/ext/aom/build/cmake/toolchains/x86_64-macos.cmake"
+            -DHAVE_NEON=0
         )
     fi
 
-    cmake "${cmake_args[@]}"
+    cmake "${cmake_flags[@]}"
     cmake --build "aom/build.libaom.${arch}" --config Release --parallel
 done
 
@@ -202,7 +204,9 @@ for arch in x86_64 arm64; do
         -DAVIF_LIBXML2=LOCAL \
         -DCMAKE_EXE_LINKER_FLAGS="/opt/local/lib/libiconv.a" \
         -DAVIF_CODEC_SVT=LOCAL \
-        -DAVIF_CODEC_AOM=LOCAL \
+        -DAVIF_CODEC_AOM=SYSTEM \
+        -DAOM_INCLUDE_DIR="${TEMP_DIR}/libavif/ext/aom" \
+        -DAOM_LIBRARY="${TEMP_DIR}/libavif/ext/aom/build.libaom.${arch}/libaom.a" \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         "${TEMP_DIR}/libavif"
 

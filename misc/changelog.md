@@ -12,19 +12,40 @@
 ### Fixed
 
 - Fix "Smallest Lossless" and the JPEG XL Intelligent Effort picker reporting a failed conversion (and orphaning temp files) when a losing candidate file could not be deleted; failed conversions no longer leave temp files behind in the output folder.
-- Fix duplicate metadata arguments when combining downscaling with PNG post-processing, and missing metadata arguments when downscaling JXL/AVIF sources through a proxy.
+- Fix duplicate metadata arguments when combining downscaling with PNG post-processing.
 - Fix Windows timestamp failures being masked as a generic "invalid handle" error instead of the real cause.
-- Fix proxy cleanup leaving stale state and an unreachable error handler.
 - Fix temp file leaks on checksum-verification failure (Lossless JPEG Transcoding), on ExifTool argfile runs, and on normalization-then-verify-failure.
 - Fix RAM Optimizer accepting rule fractions above 1, which could zero out the per-worker thread count.
 - Fix the update checker showing literal "None" text/links when the server sends null optional fields, and `run(silent=True)` being ignored.
-- Fix "Start Logging" reusing a closed file handle after "Stop Logging" (logs silently lost).
 - Fix the play-sound volume default never being applied.
 - Fix the progress dialog detaching from the main window position during cancel-to-finish.
 - Fix click-to-jump on sliders computing wrong values for non-zero minimums, and drag-to-scroll in the settings area never reaching position 0.
 - Fix Shift+Home/Shift+End in the file list corrupting the anchor for later shift-selections.
 - Fix the Output tab showing the wrong JPEG chroma-subsampling control after an encoder change, and "Reset to Defaults" leaving PNG Lossless unchecked.
-- Fix `runProcess2` returning raw bytes (violating its string contract) when subprocess output fails to decode.
+
+## 1.3.0 - 2026-09-06
+
+### Added
+
+- Add process priority option.
+- Add more resampling algorithms (#129).
+- Add PNG Optimization mode (#101).
+
+### Fixed
+
+- Fix performance issues on 128-thread CPUs (#122).
+- Clean up temp file if downscaling was canceled.
+- Fix Delete Original on virtual drives on Windows (#134).
+- Make extension filters in "Add Files" dialog case-insensitive on Linux (#148).
+
+### Changed
+
+- Improve conversion start and cancel times.
+- Speed up processing for JPEG and PNG sources below downscaling threshold (#141).
+- Limit AVIF tune scope to color only, leave alpha at default.
+- Update `libjxl` to `v0.12.0` (#152).
+- Update AOM AV1 to `v3.14.1` (#153).
+- Update Oxipng, ExifTool, and ImageMagick.
 
 ## 1.2.3 - 2025-10-02
 

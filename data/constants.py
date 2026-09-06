@@ -6,7 +6,7 @@ import logging
 from data.utils import removeDuplicatesHashable, listToFilter, isRunningInFlatpak
 from data.config_manager import ConfigManager
 
-VERSION = "1.2.3"
+VERSION = "1.3.0"
 UPDATE_CHECKER_VER_FILE_URL = "https://codepoems.eu/downloads/xl-converter/version.json"   # Used by UpdateChecker; example in misc/version.json
 UPDATE_CHECKER_ENABLED = True
 
@@ -82,11 +82,11 @@ elif platform.system() == "Darwin":
     JXLINFO_PATH = os.path.join(BASE_PATH, "jxlinfo")
     CJPEGLI_PATH = os.path.join(BASE_PATH, "cjpegli")
     IMAGE_MAGICK_PATH = os.path.join(BASE_PATH, "imagemagick", "magick")
-    AVIFENC_PATH = os.path.join(BASE_PATH, "libavif", "avifenc")
-    AVIFDEC_PATH = os.path.join(BASE_PATH, "libavif", "avifdec")
+    AVIFENC_PATH = os.path.join(BASE_PATH, "avifenc")
+    AVIFDEC_PATH = os.path.join(BASE_PATH, "avifdec")
     OXIPNG_PATH = os.path.join(BASE_PATH, "oxipng")
     PNGQUANT_PATH = os.path.join(BASE_PATH, "pngquant")
-    EXIFTOOL_PATH = os.path.join(BASE_PATH, "exiftool", "exiftool")
+    EXIFTOOL_PATH = os.path.join(BASE_PATH, "exiftool")
     JPEGTRAN_PATH = os.path.join(BASE_PATH, "jpegtran")
 
     CONFIG_LOCATION = os.path.normpath(os.path.expanduser("~/Library/Application Support/eu.codepoems.xl-converter"))
@@ -97,16 +97,51 @@ LOGS_DIR = os.path.join(CONFIG_LOCATION, "logs")
 JPEG_ALIASES = ["jpg", "jpeg", "jfif", "jif", "jpe"]
 ALLOWED_INPUT_DJXL = ["jxl"]
 ALLOWED_INPUT_CJXL = JPEG_ALIASES + ["png", "apng", "gif", "jxl"]
-ALLOWED_INPUT_CJPEGLI = JPEG_ALIASES + ["png", "jxl"]
+ALLOWED_INPUT_CJPEGLI = JPEG_ALIASES + ["png"]
 ALLOWED_INPUT_IMAGE_MAGICK = JPEG_ALIASES + ["png", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "heic", "heif"]
 ALLOWED_INPUT_AVIFENC = JPEG_ALIASES + ["png"]
 ALLOWED_INPUT_AVIFDEC = ["avif"]
 ALLOWED_INPUT_OXIPNG = ["png"]
 ALLOWED_INPUT = removeDuplicatesHashable(ALLOWED_INPUT_DJXL + ALLOWED_INPUT_CJXL + ALLOWED_INPUT_IMAGE_MAGICK + ALLOWED_INPUT_AVIFENC + ALLOWED_INPUT_AVIFDEC + ALLOWED_INPUT_OXIPNG)
-ALLOWED_RESAMPLING = ("Lanczos", "Point", "Box", "Cubic", "Hermite", "Gaussian", "Catrom", "Triangle", "Quadratic", "Mitchell", "CubicSpline", "Hamming", "Parzen", "Blackman", "Kaiser", "Welsh", "Hanning", "Bartlett", "Bohman")
+ALLOWED_RESAMPLING = (
+    "Lanczos",
+    "Point",
+    "Triangle",
+    "Mitchell",
+    "MagicKernelSharp2021",
+    "MagicKernelSharp2013",
+    "Bartlett",
+    "Blackman",
+    "Bohman",
+    "Box",
+    "Catrom",
+    "Cosine",
+    "Cubic",
+    "CubicSpline",
+    "Gaussian",
+    "Hamming",
+    "Hann",
+    "Hermite",
+    "Jinc",
+    "Kaiser",
+    "Lagrange",
+    "Lanczos2",
+    "Lanczos2Sharp",
+    "LanczosRadius",
+    "LanczosSharp",
+    "Parzen",
+    "Quadratic",
+    "Robidoux",
+    "RobidouxSharp",
+    "Sinc",
+    "SincFast",
+    "Spline",
+    "Welch",
+)
 
 ALLOWED_INPUT_FILTERS = [
     listToFilter("Supported Images", ALLOWED_INPUT),
+    listToFilter("All Files"),
     listToFilter("APNG", ["apng"]),
     listToFilter("AVIF", ["avif"]),
     listToFilter("BMP", ["bmp"]),

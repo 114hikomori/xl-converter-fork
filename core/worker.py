@@ -27,8 +27,8 @@ from data.constants import (
 )
 
 from core.proxy import Proxy
-from core.pathing import getUniqueFilePath, getExtension, getOutputDir, getUniqueTmpFilePath, removeFile
-from core.convert import convert, getDecoder, getDecoderArgs, getExtensionJxl, parseArgs, runBinary, runPNGPostProcessor, cleanUp
+from core.pathing import getUniqueFilePath, getExtension, getOutputDir, getUniqueTmpFilePath, removeFile, isSamePath
+from core.convert import getDecoder, getDecoderArgs, parseArgs, runBinary, runPNGPostProcessor, cleanUp, runOxipng
 from core.downscale import downscale, decodeAndDownscale
 import core.metadata as metadata
 import data.task_status as task_status
@@ -36,12 +36,11 @@ from core.exceptions import CancellationException, GenericException, FileExcepti
 import core.conflicts as conflicts
 import core.same_format as same_format
 from core.utils import getFreeSpaceLeft, remove
-from core.process import runProcessOutput
 import core.lossless_jpeg as lossless_jpeg
 from core.ram_optimizer import RAMOptimizer
 import core.timestamps as timestamps
 
-class Signals(QObject):
+class WorkerSignals(QObject):
     started = Signal(int)
     completed = Signal(int, bool)
     canceled = Signal(int)
@@ -55,10 +54,11 @@ class Worker(QRunnable):
             params: Dict,
             settings: Dict,
             available_threads: int,
-            mutex: QMutex
+            mutex: QMutex,
+            signals: WorkerSignals,
         ):
         super().__init__()
-        self.signals = Signals()
+        self.signals = signals
         self.params = copy.deepcopy(params)
         self.settings = settings    # reference, do not modify
 
@@ -72,10 +72,11 @@ class Worker(QRunnable):
         
         # Item info - always points to the original file
         self.org_item_abs_path = str(abs_path)         # path -> str cast is done for legacy reasons
+        self.org_item_ext = abs_path.suffix[1:]        # Original case
         
         # Item info - can be (carefully) reassigned
         self.item_name = abs_path.stem
-        self.item_ext = abs_path.suffix[1:].lower()
+        self.item_ext = self.org_item_ext.lower()
         self.item_dir = str(abs_path.parent)
         self.item_abs_path = str(abs_path)
 
@@ -90,6 +91,7 @@ class Worker(QRunnable):
         self.skipped = False
         self.lossless_jpeg = False
         self.png_lossy = False   # set True only by the pngquant (lossy) PNG pipeline
+        self.reconstruction_data_found = False
 
         # Misc.
         self.scl_params = None
@@ -107,12 +109,13 @@ class Worker(QRunnable):
         else:
             self.signals.started.emit(self.n)
 
+        worker_canceled = False
         try:
             self.runChecks()
             self.setupConversion()
 
             if self.skip:
-                self.signals.completed.emit(self.n, True)
+                self.skipped = True
                 return
             
             self.runDynamicRamOptimizer()
@@ -124,12 +127,15 @@ class Worker(QRunnable):
                     self.reconstructJPEG()
                 case "Smallest Lossless":
                     self.smallestLossless()
+                case "PNG Optimization":
+                    self.PNGOptimization()
                 case _:
                     self.convert()
             
             self.finishConversion()
             self.postConversionRoutines()
         except CancellationException:
+            worker_canceled = True
             self.signals.canceled.emit(self.n)
             return
         except (GenericException, FileException) as err:
@@ -138,8 +144,10 @@ class Worker(QRunnable):
             self.logException("OSError", str(err))
         except Exception as err:
             self.logException("Exception", str(err))
-
-        self.signals.completed.emit(self.n, self.skipped)
+        finally:
+            self.proxy.cleanUp(raising=False)     # Cleans up proxy if it wasn't cleaned up before. A no-op if no proxy exists.
+            if not worker_canceled:
+                self.signals.completed.emit(self.n, self.skipped)
     
     def runChecks(self):
         # Input was moved / deleted
@@ -195,13 +203,18 @@ class Worker(QRunnable):
             if self.item_ext != "jxl":
                 raise FileException("S3", "Only JPEG XL images are allowed.")
             
-            self.output_ext = getExtensionJxl(self.item_abs_path)
-            if self.output_ext != "jpg" and not self.params["jxl_png_fallback"]:
+            self.reconstruction_data_found = lossless_jpeg.hasReconstructionData(self.item_abs_path)
+            self.output_ext = "jpg" if self.reconstruction_data_found else "png"
+            if not self.reconstruction_data_found and not self.params["jxl_png_fallback"]:
                 raise FileException("S4", "Reconstruction data not found.")
         elif self.params["format"] == "Lossless JPEG Transcoding":
             if self.item_ext not in JPEG_ALIASES:
                 raise FileException("S5", "Only JPEG images are allowed.")
             self.output_ext = "jxl"
+        elif self.params["format"] == "PNG Optimization":
+            if self.item_ext != "png":
+                raise FileException("S7", "Only PNG images are allowed.")
+            self.output_ext = self.org_item_ext
         else:
             self.output_ext = getExtension(self.params["format"])
         
@@ -301,8 +314,12 @@ class Worker(QRunnable):
                         args.append("-c aom")
                         if self.params["aom_av1_chroma_subsampling"] != "Default":
                             args.append(f"-y {self.params['aom_av1_chroma_subsampling'].replace(':', '')}")
+                        # Affects color only, alpha uses the default.
                         if self.settings["avif_aom_iq_tune"]:  # libaom version >= v3.12.0
-                            args.append("-a tune=iq")
+                            args.append("-a c:tune=iq")
+                        else:
+                            args.append("-a c:tune=ssim")
+
                     case "SVT-AV1-PSY":             # Assuming SVT-AV1 was swapped before compilation
                         args.append("-c svt")
                         args.append("-y 420")       # SVT-AV1 only supports YUV:4:2:0
@@ -465,7 +482,8 @@ class Worker(QRunnable):
         # Apply metadata (ExifTool)
         if (
             not self.lossless_jpeg and
-            self.params["misc"]["keep_metadata"].startswith("ExifTool")
+            self.params["misc"]["keep_metadata"].startswith("ExifTool") and
+            self.params["format"] != "PNG Optimization"
         ):
             cur_mode = self.params["misc"]["keep_metadata"]
             try:
@@ -480,7 +498,7 @@ class Worker(QRunnable):
     def finishConversion(self):
         if self.proxy.proxyExists():
             try:
-                self.proxy.cleanup()
+                self.proxy.cleanUp()
             except FileException as err:
                 raise FileException("F0", f"Failed to delete proxy. {err}")
             self.item_abs_path = self.org_item_abs_path   # Redirect the source back to original file
@@ -508,15 +526,16 @@ class Worker(QRunnable):
                 else:
                     if mode == "Replace":
                         if (
+                            not self.params["png_opt_inplace"] and
                             (self.settings["keep_if_larger"] or self.settings["copy_if_larger"]) and
                             os.path.getsize(self.org_item_abs_path) < os.path.getsize(self.output) and
-                            (os.path.isfile(self.final_output) and os.path.samefile(self.org_item_abs_path, self.final_output))
+                            (os.path.isfile(self.final_output) and isSamePath(self.org_item_abs_path, self.final_output))
                         ):
                             self.final_output = getUniqueFilePath(self.output_dir, self.item_name, self.output_ext)
                         elif (
                             not self.params["custom_output_dir"] and
                             self.params["delete_original"] and
-                            (os.path.isfile(self.final_output) and os.path.samefile(self.org_item_abs_path, self.final_output))
+                            (os.path.isfile(self.final_output) and isSamePath(self.org_item_abs_path, self.final_output))
                         ):
                             if self.params["delete_original_mode"] == "To Trash":
                                 send2trash(self.final_output)
@@ -538,7 +557,7 @@ class Worker(QRunnable):
                     os.path.getsize(self.org_item_abs_path) < os.path.getsize(self.final_output) and
                     self.params["format"] not in ("Lossless JPEG Transcoding", "JPEG Reconstruction") and
                     (self.params["format"] != "PNG" or self.png_lossy) and
-                    not os.path.samefile(self.org_item_abs_path, self.final_output)
+                    not isSamePath(self.org_item_abs_path, self.final_output)
                 ):
                     os.remove(self.final_output)
                     self.final_output = getUniqueFilePath(self.output_dir, self.item_name, self.item_ext)
@@ -563,7 +582,7 @@ class Worker(QRunnable):
                 not self.settings["keep_if_larger"] or
                 os.path.getsize(self.org_item_abs_path) > os.path.getsize(self.final_output)
             ) and
-            not os.path.samefile(self.org_item_abs_path, self.final_output)
+            not isSamePath(self.org_item_abs_path, self.final_output)
         ):
             try:
                 if self.params["delete_original"]:
@@ -613,7 +632,8 @@ class Worker(QRunnable):
             "png": [
                 "-o 4" if self.params["max_compression"] else "-o 2",
                 f"-t {self.available_threads}",
-                "--np", "--nc",
+                "--fast",
+                "--nc", "--np", "--ng",
                 ],
             "webp": [
                 f"-define webp:thread-level={1 if self.available_threads > 1 else 0}",
@@ -638,7 +658,8 @@ class Worker(QRunnable):
             self.lossless_jpeg = self.item_ext in JPEG_ALIASES
         args["jxl"].extend([f"--lossless_jpeg={1 if self.lossless_jpeg else 0}"])
 
-        args["png"].extend(metadata.getArgs(OXIPNG_PATH, self.params["misc"]["keep_metadata"]))
+        if self.params["misc"]["keep_metadata"] == "Encoder - Wipe":
+            args["png"].extend(["--strip", "safe"])
         args["webp"].extend(metadata.getArgs(IMAGE_MAGICK_PATH, self.params["misc"]["keep_metadata"]))
         args["jxl"].extend(metadata.getArgs(CJXL_PATH, self.params["misc"]["keep_metadata"], self.lossless_jpeg))
 
@@ -782,7 +803,40 @@ class Worker(QRunnable):
             self.org_item_abs_path,
             self.output,
             self.available_threads,
+            explicit=not self.params["jxl_png_fallback"] or self.reconstruction_data_found,
         )
 
         if not success:
             raise FileException("reconstruct_0", f"Reconstruction failed. {stderr}")
+    
+    def PNGOptimization(self):
+        args = [
+            f"-o {min(self.params['effort'], 6)}",
+            f"-t {self.available_threads}",
+            "--fast",
+            "--np",     # Disable indexing color palettes
+        ]
+
+        if not self.settings["png_opt_pixel_format"]:
+            args.extend(["--nb", "--nc", "--ng"])
+
+        match self.params["effort"]:
+            case 7:
+                args.append("--zopfli --zi 15")
+            case 8:
+                args.append("--zopfli --zi 100 --ziwi 15")
+            case 9:
+                args.append("--zopfli --zi 255 --ziwi 30")
+
+        if not self.params["misc"]["png_opt_keep_metadata"]:
+            args.extend(["--strip", "safe"])
+
+        stdout, stderr = runOxipng(
+            args,
+            self.item_abs_path,
+            self.output,
+            delete_if_canceled=[self.output],
+        )
+
+        if not os.path.isfile(self.output):
+            raise FileException("png_opt_0", f"Optimization failed. {stderr}")

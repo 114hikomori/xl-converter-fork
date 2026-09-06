@@ -336,13 +336,62 @@ def test__chooseOutput_var_save(app):
 @pytest.mark.parametrize("widget_name, variable_name, associated_key", [
     ("int_effort_cb", "jxl_int_effort_visible", "intelligent_effort"),
     ("jxl_modular_cb", "jxl_lossy_modular_visible", "jxl_modular"),
+    ("int_effort_cb", "jxl_int_effort_visible", "intelligent_effort"),
 ])
-def test_getSettings_special(widget_name, variable_name, associated_key, app):
+def test_getSettings_widget_visibility(widget_name, variable_name, associated_key, app):
     getattr(app, widget_name).setChecked(True)
     setattr(app, variable_name, False)
     assert not app.getSettings()[associated_key]
     setattr(app, variable_name, True)
     assert app.getSettings()[associated_key]
+
+def test_getSettings_no_png_opt(app):
+    app.duplicates_cmb.setCurrentText("Rename")
+    app.choose_output_src_rb.setChecked(True)
+    app.delete_original_cb.setChecked(True)
+    app.format_cmb.setCurrentText("JPEG")
+    app.png_opt_inplace_cb.setChecked(True)
+
+    settings = app.getSettings()
+
+    assert settings["if_file_exists"] == "Rename"
+    assert settings["custom_output_dir"] == False
+    assert settings["delete_original"] == True
+
+def test_getSettings_png_opt(app):
+    app.duplicates_cmb.setCurrentText("Rename")
+    app.choose_output_ct_rb.setChecked(False)
+    app.delete_original_cb.setChecked(True)
+    app.format_cmb.setCurrentText("PNG Optimization")
+    app.png_opt_inplace_cb.setChecked(True)
+
+    settings = app.getSettings()
+
+    assert settings["if_file_exists"] == "Replace"
+    assert settings["custom_output_dir"] == False
+    assert settings["delete_original"] == False
+
+@pytest.mark.parametrize(
+    "jxl_modular_visible, jxl_lossless_checked, jxl_modular_checked, expected_return", [
+        (False, False, True, False),
+        (True, True, True, False),
+        (False, True, True, False),
+        (True, False, True, True),
+    ]
+)
+def test_getSettings_jxl_lossy_modular(
+    jxl_modular_visible,
+    jxl_lossless_checked,
+    jxl_modular_checked,
+    expected_return,
+    app,
+):
+    app.jxl_modular_cb.setChecked(True)
+    setattr(app, "jxl_lossy_modular_visible", jxl_modular_visible)
+    app.lossless_cb.setChecked(jxl_lossless_checked)
+    app.jxl_modular_cb.setChecked(jxl_modular_checked)
+
+    assert app.getSettings()["jxl_modular"] == expected_return
 
 def test__onJXLNormalizeClicked_no_var(app):
     with (
@@ -491,3 +540,56 @@ def test_sf_preset_custom_seed_does_not_overwrite_saved_on_restore(app):
     app.sf_preset_cmb.setCurrentText("Custom")
 
     assert app.sf_png_q_sb.value() == 42
+def test_png_opt_inplace_happy_path(app):
+    # PNG Optimization / inplace on
+    app.format_cmb.setCurrentText("PNG Optimization")
+    app.delete_original_cb.setChecked(False)
+    app.png_opt_inplace_cb.setChecked(True)
+    assert not app.output_grp.isEnabled()
+    assert not app.duplicates_l.isEnabled()
+    assert not app.duplicates_cmb.isEnabled()
+    assert not app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+
+    # PNG Optimization / inplace off
+    app.png_opt_inplace_cb.setChecked(False)
+    assert app.output_grp.isEnabled()
+    assert app.duplicates_l.isEnabled()
+    assert app.duplicates_cmb.isEnabled()
+    assert app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+
+    # JPEG / reference
+    app.png_opt_inplace_cb.setChecked(True)
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.output_grp.isEnabled()
+    assert app.duplicates_l.isEnabled()
+    assert app.duplicates_cmb.isEnabled()
+    assert app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+
+def test_delete_original_happy_path(app):
+    # Default behavior
+    app.format_cmb.setCurrentText("JPEG")
+    app.delete_original_cb.setChecked(True)
+    assert app.delete_original_cmb.isEnabled()
+    app.delete_original_cb.setChecked(False)
+    assert not app.delete_original_cmb.isEnabled()
+
+    # PNG Optimization
+    app.format_cmb.setCurrentText("PNG Optimization")
+    app.png_opt_inplace_cb.setChecked(True)
+    assert not app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+    app.png_opt_inplace_cb.setChecked(False)
+    app.delete_original_cb.setChecked(False)
+    assert app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+
+    # Verify default behavior
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.delete_original_cb.isEnabled()
+    assert not app.delete_original_cmb.isEnabled()
+    app.delete_original_cb.setChecked(True)
+    assert app.delete_original_cb.isEnabled()
+    assert app.delete_original_cmb.isEnabled()

@@ -87,8 +87,11 @@ pacman -S --needed \
     cmake \
     wget \
     make \
-    nasm \
     base-devel \
+    autoconf \
+    automake \
+    libtool \
+    nasm \
     mingw-w64-x86_64-gcc \
     mingw-w64-x86_64-toolchain \
     mingw-w64-x86_64-cmake \
@@ -98,7 +101,10 @@ pacman -S --needed \
     mingw-w64-x86_64-libpng \
     mingw-w64-x86_64-libjpeg-turbo \
     mingw-w64-x86_64-rust \
-    mingw-w64-x86_64-7zip
+    mingw-w64-x86_64-7zip \
+    mingw-w64-x86_64-imagemagick \
+    mingw-w64-x86_64-libjxl \
+    mingw-w64-x86_64-aom
 ```
 
 Relaunch MSYS2 MINGW64 again.
@@ -143,14 +149,7 @@ Launch CMD, and setup PyInstaller:
 
 ```cmd
 cd C:\msys64\home\user\xl-converter
-env_build\Scripts\activate
-%comspec% /k "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-git clone -b v6.11.1 --depth 1 https://github.com/pyinstaller/pyinstaller.git misc\pyinstaller
-cd misc\pyinstaller\bootloader
-python waf all
-cd ..
-pip install .
-cd ..\..
+call misc\build_scripts\windows\pyinstaller.cmd
 env_build\Scripts\activate
 ```
 
@@ -226,17 +225,11 @@ python main.py
 Setup PyInstaller:
 
 ```bash
-source env_build/bin/activate
-git clone -b v6.11.1 --depth 1 https://github.com/pyinstaller/pyinstaller.git misc/pyinstaller
-cd misc/pyinstaller/bootloader
-python waf all --gcc
-cd ..
-pip install .
-cd ../..
+./misc/build_scripts/linux/pyinstaller.sh
 source env_build/bin/activate
 ```
 
-The last line reloads the environment to avoid the `ModuleNotFoundError` error.
+The last line reloads the environment to avoid the `ModuleNotFoundError`.
 
 Build:
 
@@ -244,74 +237,7 @@ Build:
 python build.py
 ```
 
-### macOS
-
-> [!NOTE]
-> The native macOS support is experimental. Use Wine instead.
-
-Prerequisites:
-- [MacPorts](https://macports.org/)
-- [Rust](https://www.rust-lang.org/)
-- [Python 3.13 Universal2 build](https://www.python.org/downloads/macos/)
-
-Add the following line to `/opt/local/etc/macports/macports.conf`:
-
-```txt
-macosx_deployment_target 11.0
-```
-
-Install dependencies:
-
-```bash
-sudo port -s install nasm cmake git wget gtest coreutils ninja gmake gsed pkgconfig +universal llvm-17 clang-17 giflib5 +universal libjpeg-turbo +universal libpng +universal zlib +universal brotli +universal webp +universal libiconv +universal libomp +universal imath +universal glib2 +universal gettext +universal openjpeg +universal lcms2 +universal fontconfig +universal freetype +universal libjxl +universal libheif +universal liblqr +universal tiff +universal libtool +universal
-```
-
-Run each target individually:
-- `make libjpeg-turbo`
-- `make libjxl`
-- `make libavif`
-- `make oxipng`
-- `make pngquant`
-- `make imagemagick`
-
-Create and activate a virtual environment:
-
-```bash
-python -m venv env_build
-source env_build/bin/activate
-pip install -r requirements.txt
-```
-
-Run the application:
-
-```bash
-python main.py
-```
-
-Bundling support is limited. The exported bundle will not work on another machine!
-
-Clone PyInstaller, recompile the bootloader, and install:
-
-```bash
-git clone -b v6.11.1 --depth 1 https://github.com/pyinstaller/pyinstaller.git misc/pyinstaller
-cd misc/pyinstaller/bootloader
-python waf all --clang
-cd ..
-pip install .
-cd ../..
-```
-
-Bundle:
-
-```bash
-python build.py
-```
-
-## Info
-
-> [!TIP]
-> To manage multiple Python versions on Windows, you can use: the `py` launcher or pyenv-win.
-
+e
 ## Testing
 
 [Setup repo](#building-from-source).

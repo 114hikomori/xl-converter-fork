@@ -472,7 +472,7 @@ def test_movePage_valid_directions(direction, file_view):
 
     file_view.movePage(direction)
 
-    file_view.moveIndexToBottom.assert_called()
+    file_view.moveIndexToBottom.assert_called_once()
 
 @pytest.mark.parametrize("direction", ["up", "down"])
 def test_movePage_no_current_item(direction, file_view):
@@ -480,9 +480,9 @@ def test_movePage_no_current_item(direction, file_view):
     file_view.moveIndexToBottom = MagicMock()
     file_view.indexFromItem = MagicMock()
 
-    file_view.movePage("up")
+    file_view.movePage(direction)
 
-    file_view.moveIndexToBottom.assert_called()
+    file_view.moveIndexToBottom.assert_called_once()
     file_view.indexFromItem.assert_not_called()
 
 @pytest.fixture

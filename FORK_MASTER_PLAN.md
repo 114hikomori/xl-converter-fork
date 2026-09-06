@@ -392,3 +392,15 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   (56 MiB, 7z "Everything is Ok"); real launch verified via
   `[Process]::Start()` → MainWindowTitle "XL Converter". Not committed,
   not published.
+
+- 2026-09-07 [Session E]: Synced upstream v1.3.0 (150 commits) via merge on
+  branch `merge-v1.3.0` — 24 conflicted files resolved with rules:
+  overlapping bug fixes taken upstream (process.py rewrite, proxy cleanUp,
+  logging_manager, check_commands, test asserts), fork features kept (Same
+  Format presets, HEIC, pngquant/oxipng Track A, leak fixes SL4/C2/
+  finishConversion/argfile), PNG kept BOTH (their "PNG Optimization" mode +
+  our PNG-output pipeline coexist), README macOS section dropped per
+  upstream, changelog split (fork items that upstream fixed itself removed
+  from our Fixed list). Upstream's DOWNSCALING_DISALLOWED_FORMATS gained
+  "Same Format"; their CJPEGLI input fix adopted. Verified: pytest
+  1154/1154, test_convert.py 36/36 (real binaries), VERSION now 1.3.0.

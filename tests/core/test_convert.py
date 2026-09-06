@@ -5,7 +5,7 @@ import pytest
 
 import core.convert as convert
 from core.exceptions import GenericException
-from data.constants import AVIFENC_PATH, IMAGE_MAGICK_PATH, DJXL_PATH, AVIFDEC_PATH, ALLOWED_INPUT_IMAGE_MAGICK
+from data.constants import AVIFENC_PATH, IMAGE_MAGICK_PATH, DJXL_PATH, AVIFDEC_PATH, ALLOWED_INPUT_IMAGE_MAGICK, OXIPNG_PATH
 from core.exceptions import CancellationException
 
 def test_runBinary_happy_path():
@@ -56,7 +56,7 @@ def test_runBinary_canceled():
             "path/src.png",
             "path/dst.jxl"
         )
-        mock_runProcess2.assert_called_once()
+    mock_runProcess2.assert_called_once()
 
 def test_runBinary_args_after_input():
     with (
@@ -124,6 +124,20 @@ def test_runBinary_delete_if_canceled_empty():
         mock_isfile.assert_not_called()
         mock_remove.assert_not_called()
 
+def test_runBinary_runProcess2_exc():
+    with (
+        patch("core.convert.runProcess2", side_effect=PermissionError) as mock_runProcess2,
+        pytest.raises(PermissionError),
+    ):
+        convert.runBinary(
+            "path/bin",
+            ["-arg1", "-arg2"],
+            "path/src.png",
+            "path/dst.jxl",
+            args_after_input=False,
+            delete_if_canceled=[],
+        )
+
 def test_runJPEGtran_happy_path():
     stdout, stderr = "completed", "test"
     with (
@@ -165,23 +179,85 @@ def test_runJPEGtran_sad_path():
         "path/src.jpg",
     )
 
-def test_convert_avifenc():
-    with patch("core.convert.runProcess") as mock_runProcess:
-        convert.convert(AVIFENC_PATH, "src.png", "dst.avif", ["-q", "50"])
-        mock_runProcess.assert_called_once_with(AVIFENC_PATH, "-q", "50", "src.png", "dst.avif")
+@pytest.fixture
+def runOxipng_patches():
+    mocks = {
+        "wasCanceled": patch("core.convert.task_status.wasCanceled", return_value=False),
+        "runProcess2": patch("core.convert.runProcess2", return_value=("", "")),
+        "isfile": patch("core.convert.os.path.isfile", return_value=True),
+        "remove": patch("core.convert.os.remove"),
+    }
 
-def test_convert_other():
-    with patch("core.convert.runProcess") as mock_runProcess:
-        convert.convert("encoder_path", "src.png", "dst.avif", ["-q", "50"])
-        mock_runProcess.assert_called_once_with("encoder_path", "src.png","-q", "50", "dst.avif")
+    with ExitStack() as stack:
+        yield {name: stack.enter_context(patcher) for name, patcher in mocks.items()}
 
-def test_getExtensionJxl_jpg():
-    with patch("core.convert.runProcessOutput", return_value=("JPEG bitstream reconstruction data available", "")):
-        assert convert.getExtensionJxl("src.jxl") == "jpg"
+@pytest.mark.parametrize(
+    "inplace, dst_path, expected_cmd", [
+        (True, None, (OXIPNG_PATH, "--np", "/tmp/src.png")),
+        (False, "/tmp/dst.png", (OXIPNG_PATH, "--np", "/tmp/src.png", "--out", "/tmp/dst.png")),
+    ]
+)
+def test_runOxipng_inplace(inplace, dst_path, expected_cmd, runOxipng_patches):
+    runProcess2_return = ("stdout", "")
+    runOxipng_patches["runProcess2"].return_value = runProcess2_return
+    assert convert.runOxipng(
+        ["--np"],
+        "/tmp/src.png",
+        dst_path,
+        inplace=inplace,
+    ) == runProcess2_return
+    runOxipng_patches["runProcess2"].assert_called_once_with(*expected_cmd)
 
-def test_getExtensionJxl_png():
-    with patch("core.convert.runProcessOutput", return_value=("", "")):
-        assert convert.getExtensionJxl("src.jxl") == "png"
+def test_runOxipng_inplace_false_no_dst(runOxipng_patches):
+    src_path = "/tmp/src.png"
+
+    with (
+        pytest.raises(ValueError, match="dst_path is required if inplace is False."),
+    ):
+        convert.runOxipng([], src_path)
+    runOxipng_patches["runProcess2"].assert_not_called()
+
+def test_runOxipng_canceled_no_delete_list(runOxipng_patches):
+    runOxipng_patches["wasCanceled"].return_value = True
+    with (
+        patch("core.convert.cleanUp") as mock_cleanUp,
+        pytest.raises(CancellationException),
+    ):
+        convert.runOxipng([], "/tmp/src.png", "/tmp/dst.png")
+    runOxipng_patches["runProcess2"].assert_called_once()
+    mock_cleanUp.assert_not_called()
+
+def test_runOxipng_canceled_delete_list_exists(runOxipng_patches):
+    tmp_files = ["/tmp/image_0.png", "/tmp/image_1.png", "/tmp/image_2.png"]
+    runOxipng_patches["wasCanceled"].return_value = True
+    runOxipng_patches["isfile"].side_effect = (True, False, True)
+    with (
+        pytest.raises(CancellationException),
+    ):
+        convert.runOxipng(
+            [],
+            "/tmp/src.png",
+            "/tmp/dst.png",
+            delete_if_canceled=tmp_files,
+        )
+    runOxipng_patches["runProcess2"].assert_called_once()
+    assert runOxipng_patches["isfile"].call_count == 3
+    assert runOxipng_patches["remove"].call_count == 2
+    assert runOxipng_patches["remove"].call_args_list[0].args[0] == tmp_files[0]
+    assert runOxipng_patches["remove"].call_args_list[1].args[0] == tmp_files[2]
+
+def test_runOxipng_src_in_delete_if_canceled(runOxipng_patches):
+    src_path = "/tmp/src.png"
+    with (
+        pytest.raises(ValueError),
+    ):
+        convert.runOxipng(
+            [],
+            src_path,
+            "/tmp/dst.png",
+            delete_if_canceled=[src_path],
+        )
+    runOxipng_patches["runProcess2"].assert_not_called()
 
 def test_parseArgs():
     assert convert.parseArgs(["--quality=50", "-m 1"]) == ["--quality=50", "-m", "1"]

@@ -8,11 +8,10 @@ from data.constants import (
     IMAGE_MAGICK_PATH,
     AVIFDEC_PATH,
     DJXL_PATH,
-    JXLINFO_PATH,
-    AVIFENC_PATH,
     JPEGTRAN_PATH,
+    OXIPNG_PATH,
 )
-from core.process import runProcess, runProcessOutput, runProcess2
+from core.process import runProcess2
 from core.exceptions import GenericException, CancellationException
 import data.task_status as task_status
 
@@ -25,8 +24,8 @@ def runBinary(
     dst_path: str | None = None,
     args_after_input: bool = False,
     delete_if_canceled: list[str] = [],
-) -> (str, str):
-    """Replacement for convert().
+) -> tuple[str, str]:
+    """A universal method for running binaries.
 
     Args:
         bin_path: the absolute path to the binary
@@ -41,6 +40,12 @@ def runBinary(
 
     Raises:
         CancellationException: if task_status is canceled
+        PermissionError
+        FileNotFoundError
+        OSError
+
+    Caveats:
+        args will be split so do not put paths in there.
     """
     cmd = [bin_path]
     if args_after_input:
@@ -109,7 +114,7 @@ def runJPEGtran(
     args: list[str],
     src_path: str,
     dst_path: str,
-) -> (str, str):
+) -> tuple[str, str]:
     """Runs jpegtran.
 
     Args:
@@ -130,28 +135,37 @@ def runJPEGtran(
 
     return (stdout, stderr)
 
-def convert(encoder_path, src, dst, args = []):
-    """Universal method for all encoders. Deprecated."""
-    cmd = []
-    if encoder_path == AVIFENC_PATH:
-        cmd = (encoder_path, *parseArgs(args), src, dst)
-    else:
-        cmd = (encoder_path, src, *parseArgs(args), dst)
-    
-    runProcess(*cmd)
+def runOxipng(
+    args: list[str],
+    src_path: str,
+    dst_path: str | None = None,
+    inplace: bool = False,
+    delete_if_canceled: list[str] | None = None,
+) -> tuple[str, str]:
+    """Runs Oxipng."""
+    if not inplace and dst_path is None:
+        raise ValueError("dst_path is required if inplace is False.")
 
-def getExtensionJxl(src_path: str) -> Literal["jpg", "png"]:
-    """Assign extension based on If JPEG reconstruction data is available. Only use If src format is jxl."""
-    if "JPEG bitstream reconstruction data available" in runProcessOutput(JXLINFO_PATH, src_path)[0]:
-        return "jpg"
-    else:
-        return "png"
+    if delete_if_canceled and src_path in delete_if_canceled:
+        raise ValueError("src_path cannot be in delete_if_canceled")
 
-def parseArgs(args):
+    if inplace:
+        stdout, stderr = runProcess2(OXIPNG_PATH, *parseArgs(args), src_path)
+    else:
+        stdout, stderr = runProcess2(OXIPNG_PATH, *parseArgs(args), src_path, "--out", dst_path)
+
+    if task_status.wasCanceled():
+        if delete_if_canceled:
+            cleanUp(delete_if_canceled)
+        raise CancellationException()
+
+    return (stdout, stderr)
+
+def parseArgs(args: list[str]) -> list[str]:
     """Splits arguments by spaces and flattens them into a list."""
     tmp = []
     for arg in args:
-        tmp.extend(arg.split())
+        tmp.extend(str(arg).split())
     return tmp
 
 def getDecoder(ext: str) -> str:
@@ -171,7 +185,7 @@ def getDecoder(ext: str) -> str:
             else:
                 raise GenericException("C4", f"Decoder for {ext} was not found")
 
-def getDecoderArgs(decoder_path: str, threads: int) -> list:
+def getDecoderArgs(decoder_path: str, threads: int) -> list[str]:
     if decoder_path == AVIFDEC_PATH:
         return [f"-j {threads}"]
     elif decoder_path == DJXL_PATH:
@@ -179,8 +193,12 @@ def getDecoderArgs(decoder_path: str, threads: int) -> list:
     else:
         return []
 
-def getImageRes(image_path: str) -> (int, int):
-    """Returns resolution of an image or (-1, -1) if one cannot be determined."""
+def getImageRes(image_path: str) -> tuple[int, int]:
+    """
+    Returns resolution of an image or (-1, -1) if one cannot be determined.
+
+    Note: width and height might be returned flipped because Exif orientation is not followed. Adding -auto-orient works, but is too slow and too memory intensive.
+    """
     out, err = runBinary(
         IMAGE_MAGICK_PATH,
         ["identify", "-ping", "-format", "%[page]"],
@@ -189,18 +207,18 @@ def getImageRes(image_path: str) -> (int, int):
     res_match = re.match(r"^(\d+)x(\d+)(?=\D|$)", out)
 
     if not res_match:
-        logging.error(f"[getImageResMp] Cannot determine resolution. {err}")
+        logging.error(f"[getImageRes] Cannot determine resolution. {err}")
         return (-1, -1)
 
     try:
         width = int(res_match.group(1))
         height = int(res_match.group(2))
     except (AttributeError, ValueError):
-        logging.error(f"[getImageResMp] Failed to parse resolution. {out}")
+        logging.error(f"[getImageRes] Failed to parse resolution. {out}")
         return (-1, -1)
 
     if min(width, height) < 1:
-        logging.error(f"[getImageResMp] Cannot determine resolution. {err}")
+        logging.error(f"[getImageRes] Cannot determine resolution. {err}")
         return (-1, -1)
 
     return (width, height)
@@ -214,7 +232,7 @@ def getImageResMp(image_path: str) -> float:
     else:
         return width * height / 1_000_000
 
-def getImageCount(image_path: str) -> (int, str):
+def getImageCount(image_path: str) -> tuple[int, str]:
     """Returns image count (frame or page count) and stderr. If it cannot be determined, returns -1."""
     out, err = runBinary(
         IMAGE_MAGICK_PATH,

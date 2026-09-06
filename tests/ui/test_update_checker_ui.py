@@ -137,19 +137,19 @@ def test_update_checker_init(app):
     mock_parent = QWidget()
     uc = update_checker.UpdateChecker(mock_parent)
     
-    assert uc.parent == mock_parent
+    assert uc.parent is mock_parent
 
     # Vars
-    uc.dlg = None
-    uc.runner = None
-    uc.update_info = None
+    assert uc.dlg is None
+    assert uc.runner is None
+    assert uc.update_info is None
     
     # Settings
-    uc.prompt_on_update_only = False
+    assert uc.prompt_on_update_only is False
 
     # Flags
-    uc.initialized = False
-    uc.message_viewed = False
+    assert uc.initialized is False
+    assert uc.message_viewed is False
 
 def test_update_checker_lazy_init(update_checker_object):
     mock_dialog = MagicMock(spec=update_checker.Dialog)

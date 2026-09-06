@@ -6,7 +6,7 @@ import pytest
 from PySide6.QtCore import QMutex
 from PySide6.QtTest import QSignalSpy
 
-from core.worker import Worker
+from core.worker import Worker, WorkerSignals
 from core.proxy import Proxy
 from core.exceptions import FileException, GenericException, CancellationException
 from data.constants import OXIPNG_PATH, PNGQUANT_PATH
@@ -14,6 +14,7 @@ from data.constants import OXIPNG_PATH, PNGQUANT_PATH
 @pytest.fixture
 def worker():
     mutex = QMutex()
+    worker_signals = WorkerSignals()
     w = Worker(
         0,
         Path("/path/to/images/image.png"),
@@ -39,6 +40,7 @@ def worker():
             "aom_av1_chroma_subsampling": "Default",
             "jpegli_chroma_subsampling": "Default",
             "jxl_png_fallback": False,
+            "png_opt_inplace": False,
             "downscaling": {
                 "enabled": False,
                 "mode": "Percent",
@@ -54,6 +56,7 @@ def worker():
             "misc": {
                 "keep_metadata": "Encoder - Wipe",
                 "keep_timestamps": False,
+                "png_opt_keep_metadata": True,
             }
         },
         {
@@ -75,9 +78,11 @@ def worker():
             "avif_encoder": "AOM AV1",
             "avif_aom_iq_tune": False,
             "avif_bit_depth": "Auto",
+            "png_opt_pixel_format": False,
         },
         4,
         mutex,
+        worker_signals,
     )
     w.proxy = MagicMock(spec=Proxy)
     w.scl_params = {}
@@ -113,6 +118,26 @@ def test_run_started(mock_wasCanceled, worker):
     spy_started = QSignalSpy(worker.signals.started)
     worker.run()
     assert spy_started.count() == 1
+
+def test_run_finally(worker):
+    spy_completed = QSignalSpy(worker.signals.completed)
+    worker.run()
+    worker.proxy.cleanUp.assert_called_once_with(raising=False)
+    assert spy_completed.count() == 1
+
+def test_run_canceled_mid_run(worker):
+    spy_canceled = QSignalSpy(worker.signals.canceled)
+    spy_completed = QSignalSpy(worker.signals.completed)
+
+    with (
+        patch.object(worker, "runChecks", side_effect=CancellationException),
+        patch("core.worker.task_status.wasCanceled", return_value=False),
+    ):
+        worker.run()
+
+    assert spy_canceled.count() == 1
+    assert spy_completed.count() == 0
+    worker.proxy.cleanUp.assert_called_once_with(raising=False)
 
 @patch("core.worker.os.path.isfile", return_value=False)
 def test_runChecks_file_not_found(mock_isfile, worker):
@@ -174,41 +199,33 @@ def test_runChecks_same_format_skips_unroutable(mock_isfile, worker):
 
 @pytest.fixture
 def setupConversion_patches():
-    with (
-        patch("core.worker.Proxy.isProxyNeeded", return_value=False) as mock_isProxyNeeded,
-        patch("core.worker.os.makedirs", side_effect=None) as mock_makedirs,
-        patch("core.worker.getUniqueTmpFilePath", return_value=normalizePath("/output/dir/image.jpg")) as mock_getUniqueTmpFilePath,
-        patch("core.worker.getOutputDir", return_value="/output/dir/") as mock_getOutputDir,
-        patch("core.worker.getExtensionJxl", return_value="jpg") as mock_getExtensionJxl,
-        patch("core.worker.os.path.isfile", side_effect=[True, True]) as mock_isfile,
-        patch("core.worker.os.path.getsize", return_value=300_000) as mock_getsize,
-        patch("core.worker.getFreeSpaceLeft", return_value=300_000_000_000) as mock_getFreeSpaceLeft,
-        patch("core.worker.getExtension", return_value="jxl") as mock_getExtension,
-    ):
-        yield (
-            mock_getUniqueTmpFilePath,     # 0
-            mock_getOutputDir,          # 1
-            mock_isProxyNeeded,         # 2
-            mock_makedirs,              # 3
-            mock_getExtensionJxl,       # 4
-            mock_isfile,                # 5
-            mock_getsize,               # 6
-            mock_getFreeSpaceLeft,      # 7
-            mock_getExtension,          # 8
-        )
+    mocks = {
+        "isProxyNeeded": patch("core.worker.Proxy.isProxyNeeded", return_value=False),
+        "makedirs": patch("core.worker.os.makedirs", side_effect=None),
+        "getUniqueTmpFilePath": patch("core.worker.getUniqueTmpFilePath", return_value=normalizePath("/output/dir/image.jpg")),
+        "getOutputDir": patch("core.worker.getOutputDir", return_value="/output/dir/"),
+        "isfile": patch("core.worker.os.path.isfile", side_effect=[True, True]),
+        "getsize": patch("core.worker.os.path.getsize", return_value=300_000),
+        "getFreeSpaceLeft": patch("core.worker.getFreeSpaceLeft", return_value=300_000_000_000),
+        "getExtension": patch("core.worker.getExtension", return_value="jxl"),
+        "hasReconstructionData": patch("core.worker.lossless_jpeg.hasReconstructionData", return_value=True),
+    }
+
+    with ExitStack() as stack:
+        _mock = {name: stack.enter_context(patcher) for name, patcher in mocks.items()}
+        yield _mock
+
 
 def test_setupConversion_regular(setupConversion_patches, worker):
+    mocks = setupConversion_patches
     output = normalizePath("/output/dir/image_unique.jpg")
     output_dir = normalizePath("/output/dir/")
     final_output = normalizePath("/output/dir/image.jpg")
     worker.item_name = "image"
     worker.params["format"] = "JPEG"
-    mock_getUniqueTmpFilePath = setupConversion_patches[0]
-    mock_getOutputDir = setupConversion_patches[1]
-    mock_getExtension = setupConversion_patches[8]
-    mock_getUniqueTmpFilePath.return_value = output
-    mock_getOutputDir.return_value = output_dir
-    mock_getExtension.return_value = "jpg"
+    mocks["getUniqueTmpFilePath"].return_value = output
+    mocks["getOutputDir"].return_value = output_dir
+    mocks["getExtension"].return_value = "jpg"
 
     worker.setupConversion()
     
@@ -218,8 +235,7 @@ def test_setupConversion_regular(setupConversion_patches, worker):
     assert worker.output_ext == "jpg"
 
 def test_setupConversion_makedirs_error(setupConversion_patches, worker):
-    mock_makedirs = setupConversion_patches[3]
-    mock_makedirs.side_effect = OSError
+    setupConversion_patches["makedirs"].side_effect = OSError
     
     with pytest.raises(FileException) as exc:
         worker.setupConversion()
@@ -230,42 +246,36 @@ def test_setupConversion_space_left_pass(setupConversion_patches, worker):
     worker.setupConversion()
 
 def test_setupConversion_space_left_exception(setupConversion_patches, worker):
-    mock_getFreeSpaceLeft = setupConversion_patches[7]
-    mock_getFreeSpaceLeft.return_value = 10_000
+    setupConversion_patches["getFreeSpaceLeft"].return_value = 10_000
     with pytest.raises(FileException) as exc:
         worker.setupConversion()
 
     assert "No space left on device" in exc.value.msg
 
-def test_setupConversion_jpeg_reconstruction_rec_data_found(setupConversion_patches, worker):
+@pytest.mark.parametrize("jxl_png_fallback", [True, False])
+def test_setupConversion_jpeg_reconstruction_rec_data_found(jxl_png_fallback, setupConversion_patches, worker):
+    setupConversion_patches["hasReconstructionData"].return_value = True
     worker.params["format"] = "JPEG Reconstruction"
+    worker.params["jxl_png_fallback"] = jxl_png_fallback
     worker.item_ext = "jxl"
 
     worker.setupConversion()
     assert worker.output_ext == "jpg"
 
-def test_setupConversion_jpeg_reconstruction_rec_data_not_found(setupConversion_patches, worker):
-    mock_getExtensionJxl = setupConversion_patches[4]
-    mock_getExtensionJxl.return_value = "png"
+@pytest.mark.parametrize("jxl_png_fallback", [True, False])
+def test_setupConversion_jpeg_reconstruction_rec_data_not_found(jxl_png_fallback, setupConversion_patches, worker):
     worker.params["format"] = "JPEG Reconstruction"
+    worker.params["jxl_png_fallback"] = jxl_png_fallback
+    setupConversion_patches["hasReconstructionData"].return_value = False
     worker.item_ext = "jxl"
 
-    with pytest.raises(FileException) as exc:
+    if jxl_png_fallback:
         worker.setupConversion()
-
-    assert "Reconstruction data not found" in exc.value.msg
-    assert worker.output_ext == "png"
-
-def test_setupConversion_jpeg_reconstruction_rec_data_not_found_png_fallback(setupConversion_patches, worker):
-    mock_getExtensionJxl = setupConversion_patches[4]
-    mock_getExtensionJxl.return_value = "png"
-    worker.params["format"] = "JPEG Reconstruction"
-    worker.item_ext = "jxl"
-    worker.params["jxl_png_fallback"] = True
-
-    worker.setupConversion()
-
-    assert worker.output_ext == "png"
+        assert worker.output_ext == "png"
+    else:
+        with pytest.raises(FileException) as exc:
+            worker.setupConversion()
+        assert "Reconstruction data not found" in exc.value.msg
 
 def test_setupConversion_jpeg_reconstruction_bad_input(setupConversion_patches, worker):
     worker.params["format"] = "JPEG Reconstruction"
@@ -276,10 +286,19 @@ def test_setupConversion_jpeg_reconstruction_bad_input(setupConversion_patches, 
 
     assert "Only JPEG XL images are allowed" in exc.value.msg
 
+def test_setupConversion_png_opt_reconstruction_bad_input(setupConversion_patches, worker):
+    worker.params["format"] = "PNG Optimization"
+    worker.item_ext = "jpg"
+
+    with pytest.raises(FileException) as exc:
+        worker.setupConversion()
+
+    assert "Only PNG images are allowed" in exc.value.msg
+
 def test_setupConversion_assign_output_path(setupConversion_patches, worker):
-    mock_getUniqueTmpFilePath, mock_getOutputDir = setupConversion_patches[0], setupConversion_patches[1]
-    mock_getUniqueTmpFilePath.return_value = normalizePath("/tmp/path/image.jxl")
-    mock_getOutputDir.return_value = normalizePath("/tmp/path/")
+    mocks = setupConversion_patches
+    mocks["getUniqueTmpFilePath"].return_value = normalizePath("/tmp/path/image.jxl")
+    mocks["getOutputDir"].return_value = normalizePath("/tmp/path/")
     worker.params["format"] = "JPEG XL"
     worker.item_name = "image"
 
@@ -295,9 +314,8 @@ def test_setupConversion_skip(setupConversion_patches, worker):
 
 def test_setupConversion_proxy_needed(setupConversion_patches, worker):
     worker.proxy.isProxyNeeded = MagicMock(return_value=True)
-    mock_isProxyNeeded = setupConversion_patches[2]
     worker.proxy.generate = MagicMock(return_value="/tmp/path/image.png")
-    mock_isProxyNeeded.return_value = True
+    setupConversion_patches["isProxyNeeded"].return_value = True
 
     worker.setupConversion()
 
@@ -313,7 +331,6 @@ def worker_convert_patches(worker):
     patches = {
         "runBinary": patch("core.worker.runBinary", return_value=("stdout", "stderr")),
         "runPNGPostProcessor": patch("core.worker.runPNGPostProcessor", return_value=("stdout", "stderr")),
-        "convert": patch("core.worker.convert"),
         "remove": patch("core.worker.os.remove"),
         "rename": patch("core.worker.os.rename"),
         "getsize": patch("core.worker.os.path.getsize", return_value=[300_000, 400_00]),
@@ -388,10 +405,10 @@ def test_convert_jpeg_xl_error_default(worker_convert_patches):
     assert "Error message" in exc_info.value.msg 
 
 @pytest.mark.parametrize("encoder, quality, speed, chroma_subsampling, expected_args", [
-    ("AOM AV1", 80, 6, "Default", ["-q 80", "-s 6", "-j 4", "-c aom"]),
-    ("AOM AV1", 80, 6, "4:4:4", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 444"]),
-    ("AOM AV1", 80, 6, "4:2:2", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 422"]),
-    ("AOM AV1", 80, 6, "4:2:0", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 420"]),
+    ("AOM AV1", 80, 6, "Default", ["-q 80", "-s 6", "-j 4", "-c aom", "-a c:tune=ssim"]),
+    ("AOM AV1", 80, 6, "4:4:4", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 444", "-a c:tune=ssim"]),
+    ("AOM AV1", 80, 6, "4:2:2", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 422", "-a c:tune=ssim"]),
+    ("AOM AV1", 80, 6, "4:2:0", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 420", "-a c:tune=ssim"]),
     ("SVT-AV1-PSY", 90, 5, "4:4:4", ["-q 90", "-s 5", "-j 4", "-c svt", "-y 420", "-a tune=4"]),
 ])
 def test_convert_args_avif(encoder, quality, speed, chroma_subsampling, expected_args, worker_convert_patches):
@@ -434,7 +451,7 @@ def test_avif_iq_tune(iq_tune, worker_convert_patches):
 
     worker.convert()
 
-    assert ("-a tune=iq" in mocks["runBinary"].call_args[0][1]) == iq_tune
+    assert ("-a c:tune=iq" in mocks["runBinary"].call_args[0][1]) == iq_tune
 
 @pytest.mark.parametrize("quality, encoder, chroma_subsampling, disable_progressive_jpegli, expected_args", [
     (80, "JPEGLI", "Default", False, ["-q 80"]),
@@ -666,7 +683,7 @@ def finishConversion_patches(worker):
         "isfile": patch("core.worker.os.path.isfile", side_effect=[True, True, True]),
         "getUniqueFilePath": patch("core.worker.getUniqueFilePath", return_value="final/path/img.jpg"),
         "copyfile": patch("core.worker.shutil.copyfile"),
-        "samefile": patch("core.worker.os.path.samefile", return_value=False),
+        "isSamePath": patch("core.worker.isSamePath", return_value=False),
     }
 
     with ExitStack() as stack:
@@ -683,7 +700,7 @@ def test_finishConversion_proxy(finishConversion_patches):
     worker.finishConversion()
     
     worker.proxy.proxyExists.assert_called_once()
-    worker.proxy.cleanup.assert_called_once()
+    worker.proxy.cleanUp.assert_called_once()
     assert worker.item_abs_path == "org_item_abs_path"
 
 def test_finishConversion_no_proxy(finishConversion_patches):
@@ -694,7 +711,7 @@ def test_finishConversion_no_proxy(finishConversion_patches):
     worker.finishConversion()
 
     worker.proxy.proxyExists.assert_called_once()
-    worker.proxy.cleanup.assert_not_called()
+    worker.proxy.cleanUp.assert_not_called()
 
 def test_finishConversion_no_output(finishConversion_patches):
     worker, mocks = finishConversion_patches
@@ -773,11 +790,42 @@ def test_finishConversion_replace_edge_case_delete_original(delete_original_mode
     worker.params["custom_output_dir"] = False
     worker.params["delete_original"] = True
     worker.params["delete_original_mode"] = delete_original_mode
-    mocks["samefile"].return_value = True
+    mocks["isSamePath"].return_value = True
 
     worker.finishConversion()
 
     mocks[delete_method].assert_called_once_with("final/path/img.jpg")
+
+def test_finishConversion_replace_png_opt_inplace(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    worker.params["format"] = "PNG Optimization"
+    worker.params["png_opt_inplace"] = True
+    worker.params["if_file_exists"] = "Replace"
+    worker.params["custom_output_dir"] = False
+    worker.params["delete_original"] = False
+    mocks["isSamePath"].return_value = True
+    worker.settings["keep_if_larger"] = True
+    worker.settings["copy_if_larger"] = True
+    mocks["getsize"].side_effect = [
+        100_000,
+        100_000,
+        200_000,
+        100_000,
+        200_000,
+    ]
+
+    worker.finishConversion()
+
+    assert worker.final_output == "final/path/img.jpg"
+    mocks["getUniqueFilePath"].assert_not_called()
+    mocks["removeFile"].assert_called_once_with("final/path/img.jpg")
+    mocks["rename"].assert_called_once_with(
+        "temp/path/img.jpg",
+        "final/path/img.jpg",
+    )
+    mocks["copyfile"].assert_not_called()
 
 @pytest.mark.parametrize("file_format, getsize_side_effect, copy_if_larger_enabled, expected_to_run", [
     ("JPEG XL", [300_000, 300_000, 400_000], True, True),
@@ -867,6 +915,11 @@ def test_runExifTool_dont_run(mock_exiftool_env):
     worker.runExifTool()
     mocks["runExifTool"].assert_not_called()
 
+    worker.params["format"] = "PNG Optimization"
+    worker.params["misc"]["keep_metadata"] = "ExifTool - Wipe"
+    worker.runExifTool()
+    mocks["runExifTool"].assert_not_called()
+
 @pytest.fixture
 def postConversionRoutines_patched(worker):
     mocks = {
@@ -876,7 +929,7 @@ def postConversionRoutines_patched(worker):
         "remove": patch("core.worker.os.remove"),
         "removeFile": patch("core.worker.removeFile"),
         "send2trash": patch("core.worker.send2trash"),
-        "samefile": patch("core.worker.os.path.samefile", return_value=False),
+        "isSamePath": patch("core.worker.isSamePath", return_value=False),
     }
 
     with ExitStack() as stack:
@@ -983,7 +1036,6 @@ def smallestLossless_patches_v2():
     mocks = {
         "getsize": patch("core.worker.os.path.getsize", side_effect=getsize_side_effect),
         "getUniqueTmpFilePath": patch("core.worker.getUniqueTmpFilePath", side_effect=getUniqueTmpFilePath_side_effect),
-        "getArgs": patch("core.worker.metadata.getArgs", return_value=[]),
         "copy": patch("core.worker.shutil.copy"),
         "runBinary": patch("core.worker.runBinary", return_value=("", "")),
         "remove": patch("core.worker.os.remove"),
@@ -1127,18 +1179,20 @@ def test_smallestLossless_remove_bigger_failed_keeps_winner(smallestLossless_pat
 @pytest.mark.parametrize("jxl_auto_lossless_jpeg", [True, False])
 def test_smallestLossless_args(jxl_auto_lossless_jpeg, smallestLossless_patches_v2, worker):
     mocks = smallestLossless_patches_v2
-    mocks["getArgs"].return_value = ["--metadata_arg"]
     worker.settings["jxl_auto_lossless_jpeg"] = jxl_auto_lossless_jpeg
+    worker.params["misc"]["keep_metadata"] = "Encoder - Wipe"
     worker.item_ext = "jpg"
 
-    worker.smallestLossless()
+    with patch("core.worker.metadata.getArgs", return_value=["--metadata_arg"]):
+        worker.smallestLossless()
 
     assert mocks["runBinary"].call_count == 3
     assert mocks["runBinary"].call_args_list[0][0][1] == [
         "-o 2",
         "-t 4",
-        "--np", "--nc",
-        "--metadata_arg"
+        "--fast",
+        "--nc", "--np", "--ng",
+        "--strip", "safe",
     ]
     assert mocks["runBinary"].call_args_list[1][0][1] == [
         "-define webp:thread-level=1",
@@ -1155,33 +1209,56 @@ def test_smallestLossless_args(jxl_auto_lossless_jpeg, smallestLossless_patches_
         "--metadata_arg"
     ]
 
-def test_smallestLossless_allow_reducing_bit_depth(
+@pytest.mark.parametrize("webp_enabled", [True, False])
+def test_smallestLossless_bit_depth(webp_enabled, smallestLossless_patches_v2, worker):
+    mocks = smallestLossless_patches_v2
+    worker.params["smallest_format_pool"]["webp"] = webp_enabled
+    worker.params["smallest_format_pool"]["jxl"] = True
+
+    worker.smallestLossless()
+
+    png_args = mocks["runBinary"].call_args_list[0].args[1]
+    jxl_args = mocks["runBinary"].call_args_list[1 if not webp_enabled else 2].args[1]
+    assert ("--nb" in png_args) is (not webp_enabled)
+    assert ("--override_bitdepth=8" in jxl_args) is webp_enabled
+
+@pytest.mark.parametrize(
+    "metadata_mode, png_args, webp_args, jxl_args", [
+    (
+        "Encoder - Wipe",
+        ["--strip", "safe"],
+        ["-strip"],
+        ["-x strip=exif", "-x strip=xmp", "-x strip=jumbf"],
+    ),
+    (
+        "Encoder - Preserve",
+        [],
+        [],
+        [],
+    )
+])
+def test_smallestLossless_metadata(
+    metadata_mode,
+    png_args,
+    webp_args,
+    jxl_args,
     smallestLossless_patches_v2,
-    worker
+    worker,
 ):
     mocks = smallestLossless_patches_v2
+    worker.params["misc"]["keep_metadata"] = metadata_mode
     worker.params["smallest_format_pool"]["png"] = True
+    worker.params["smallest_format_pool"]["jxl"] = True
     worker.params["smallest_format_pool"]["webp"] = True
-    worker.params["smallest_format_pool"]["jxl"] = True
 
     worker.smallestLossless()
 
-    assert "--nb" not in mocks["runBinary"].call_args_list[0][0][1]
-    assert "--override_bitdepth=8" in mocks["runBinary"].call_args_list[2][0][1]
-
-def test_smallestLossless_disallow_reducing_bit_depth(
-    smallestLossless_patches_v2,
-    worker
-):
-    mocks = smallestLossless_patches_v2
-    worker.params["smallest_format_pool"]["png"] = True
-    worker.params["smallest_format_pool"]["webp"] = False
-    worker.params["smallest_format_pool"]["jxl"] = True
-
-    worker.smallestLossless()
-
-    assert "--nb" in mocks["runBinary"].call_args_list[0][0][1]
-    assert "--override_bitdepth=8" not in mocks["runBinary"].call_args_list[1][0][1]
+    actual_args = [call.args[1] for call in mocks["runBinary"].call_args_list]
+    for actual, expected in zip(
+        actual_args,
+        (png_args, webp_args, jxl_args),
+    ):
+        assert set(expected) <= set(actual)
 
 @pytest.fixture
 def worker_losslesslyTranscodeJPEG_patches(worker):
@@ -1412,8 +1489,17 @@ def worker_reconstructJPEG_patched(worker):
         _variables = {name: stack.enter_context(patcher) for name, patcher in variables.items()}
         yield worker, _mocks, _variables
 
-def test_reconstructJPEG_happy_path(worker_reconstructJPEG_patched):
+@pytest.mark.parametrize(
+    "jxl_png_fallback, reconstruction_data_found, explicit_expected", [
+    (True, True, True),
+    (True, False, False),
+    (False, True, True),
+    (False, False, True),
+])
+def test_reconstructJPEG_happy_path(jxl_png_fallback, reconstruction_data_found, explicit_expected, worker_reconstructJPEG_patched):
     worker, mocks, variables = worker_reconstructJPEG_patched
+    worker.params["jxl_png_fallback"] = jxl_png_fallback
+    worker.reconstruction_data_found = reconstruction_data_found
 
     worker.reconstructJPEG()
     
@@ -1421,11 +1507,13 @@ def test_reconstructJPEG_happy_path(worker_reconstructJPEG_patched):
         variables["org_item_abs_path"],
         variables["output"],
         worker.available_threads,
+        explicit=explicit_expected,
     )
     assert worker.lossless_jpeg
 
 def test_reconstructJPEG_sad_path(worker_reconstructJPEG_patched):
     worker, mocks, variables = worker_reconstructJPEG_patched
+    worker.reconstruction_data_found = True
     stdout, stderr = "stdout", "stderr"
     mocks["reconstructJPEGfromJPEGXL"].return_value = (False, stdout, stderr)
 
@@ -1433,7 +1521,7 @@ def test_reconstructJPEG_sad_path(worker_reconstructJPEG_patched):
         pytest.raises(FileException) as excinfo,
     ):
         worker.reconstructJPEG()
-    
+
     assert excinfo.value.id == "reconstruct_0"
     assert stderr in excinfo.value.msg
     assert "Reconstruction failed." in excinfo.value.msg
@@ -1441,6 +1529,7 @@ def test_reconstructJPEG_sad_path(worker_reconstructJPEG_patched):
         variables["org_item_abs_path"],
         variables["output"],
         worker.available_threads,
+        explicit=True,
     )
     assert worker.lossless_jpeg
 
@@ -1473,3 +1562,85 @@ def test_runDynamicRamOptimizer_disabled(worker):
     ):
         worker.runDynamicRamOptimizer()
         mock_run.assert_not_called()
+
+@pytest.fixture
+def PNGOptimization_patches():
+    mocks = {
+        "runOxipng": patch("core.worker.runOxipng", return_value=("", "")),
+        "isfile": patch("core.worker.os.path.isfile", return_value=True),
+    }
+
+    with ExitStack() as stack:
+        yield {name: stack.enter_context(patcher) for name, patcher in mocks.items()}
+
+def test_PNGOptimization_happy_path(PNGOptimization_patches, worker):
+    level = 4
+    available_threads = 3
+    worker.params["effort"] = level
+    worker.available_threads = 3
+    worker.params["misc"]["keep_metadata"] = "Encoder - Wipe"
+    worker.output = "/tmp/out.png"
+
+    worker.PNGOptimization()
+    PNGOptimization_patches["runOxipng"].assert_called_once_with(
+        [
+            f"-o {level}",
+            f"-t {available_threads}",
+            "--fast",
+            "--np", "--nb", "--nc", "--ng",
+        ],
+        worker.item_abs_path,
+        worker.output,
+        delete_if_canceled=[worker.output],
+    )
+
+@pytest.mark.parametrize("preserve_metadata", [
+    True, False
+])
+def test_PNGOptimization_metadata(preserve_metadata, PNGOptimization_patches, worker):
+    worker.params["misc"]["png_opt_keep_metadata"] = preserve_metadata
+
+    worker.PNGOptimization()
+    mock_runOxipng_args = PNGOptimization_patches["runOxipng"].call_args_list[0].args[0]
+    assert ("--strip" in mock_runOxipng_args) is (not preserve_metadata)
+    assert ("safe" in mock_runOxipng_args) is (not preserve_metadata)
+
+@pytest.mark.parametrize("effort, expected_extra_args", [
+    (6, None),
+    (7, "--zopfli --zi 15"),
+    (8, "--zopfli --zi 100 --ziwi 15"),
+    (9, "--zopfli --zi 255 --ziwi 30"),
+])
+def test_PNGOptimization_effort(effort, expected_extra_args, PNGOptimization_patches, worker):
+    worker.params["effort"] = effort
+
+    worker.PNGOptimization()
+    mock_runOxipng_args = PNGOptimization_patches["runOxipng"].call_args_list[0].args[0]
+    assert "-o 6" in mock_runOxipng_args
+    if expected_extra_args:
+        assert expected_extra_args in mock_runOxipng_args
+
+def test_PNGOptimization_sad_path(PNGOptimization_patches, worker):
+    level = 4
+    available_threads = 3
+    stderr = "error"
+    worker.params["effort"] = level
+    PNGOptimization_patches["isfile"].return_value = False
+    PNGOptimization_patches["runOxipng"].return_value = ("", stderr)
+
+    with (
+        pytest.raises(FileException) as exc_info,
+    ):
+        worker.PNGOptimization()
+
+    PNGOptimization_patches["runOxipng"].assert_called_once()
+    assert exc_info.value.id == "png_opt_0"
+    assert exc_info.value.msg == f"Optimization failed. {stderr}"
+
+def test_PNGOptimization_canceled(PNGOptimization_patches, worker):
+    PNGOptimization_patches["runOxipng"].side_effect = CancellationException()
+
+    with pytest.raises(CancellationException):
+        worker.PNGOptimization()
+
+    PNGOptimization_patches["isfile"].assert_not_called()  # The code after runOxipng not reached
