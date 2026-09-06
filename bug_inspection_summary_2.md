@@ -133,3 +133,29 @@ Reviewed-and-clean areas get a stamp so future passes skip them.
 - **Surprise (the strengthened gate immediately caught a real defect):** with `JPEGTRAN_PATH` added, `test_dependencies` FAILS on this machine - `bin\win\jpegtran\jpegtran.exe` does not exist anywhere under `bin/` or the built `dist/` bundle. Consequence: the 2026-09-06 portable 7z ships without jpegtran, so the "Normalize" option of Lossless JPEG Transcoding (`core/lossless_jpeg.py:61` -> `runJPEGtran` -> `Popen`) fails with a raw `OSError` for any user who enables it (default is off, so the common path is unaffected). This is a missing build input on this machine (`bin/` is gitignored; `misc/build_scripts/windows/libjpeg-turbo.sh` is the script that produces it), not a code defect - restoring the binary is proposed to the owner rather than silently downloading an exe into the repo. The gate is deliberately left red: it is now reporting reality.
 - `TWINS:` enumerated every `*_PATH` constant in `data/constants.py` against the `FILES` tuple - after the fix, all 10 bundled-binary constants are gated (`LICENSE*`/`FINISHED_SOUND_PATH` are assets, already covered/irrelevant); production consumers of each path were cross-checked via grep (`JPEGTRAN_PATH` -> `convert.py:126` -> `lossless_jpeg.normalizeJPEG` only). No other ungated binary constant remains.
 - **Notes, not bugs:** the harness mutates gitignored `_sample_img/` files in place (`os.utime`, EXIF write) and `tear_down` writes real `CONFIG_LOCATION` state - both pre-existing upstream tooling behavior, out of fork scope. `wait_for_done` terminates on every non-cancel path (exceptions still emit `completed`), verified against `Worker.run()`.
+
+### Remaining Tooling Files - Final Completeness Sweep - 2026-09-06
+- `test.py` (53 lines) - full read. Thin pytest launcher; no bugs. (Cosmetic only, not logged as a bug: its help epilog references `tests/ui/test_output_tab.py`, actual path is `tests/ui/tabs/test_output_tab.py` - upstream, help text only.)
+- `Makefile` (234 lines) - full read. Two findings, both upstream (predating the fork; logged, deliberately not fixed to preserve merge-friendliness with upstream tracking):
+  - `build-macos` invokes `misc/build_scripts/macos/build.sh`, which has never existed in this repository's history (`git log --all` empty) - the target has been dangling since upstream commit `eff1d15` (2025-06-28). The fork ships Windows only.
+  - `venv-dev` prints "venv-build has been created" (copy-paste echo string, cosmetic).
+  - Per-tool `bins_*`/`dest_*` cleanup layout cross-checked against each script's actual output dir (incl. the fork's `e0e09e0` pngquant wiring) - consistent, including `bins_win_libjpeg-turbo := jpegtran` matching `libjpeg-turbo.sh`'s output folder.
+- Root `build.py` (483 lines) - full read (also exercised for real on 2026-09-06). Dead `"./fonts/"` entry in the assets tuple (upstream `f8e3840`): no top-level `fonts/` exists; real fonts ship via `"./assets/"` -> `assets/fonts` (verified `ASSETS_FONTS_DIR` resolves there and the built bundle contains them). Silently skipped by `os.path.isdir` - harmless, logged not fixed. `_appendInstaller`'s `replaceLine` targets verified against `misc/install.iss`'s actual `#define MyAppVersion` / `OutputBaseFilename` lines.
+- `misc/install.iss`, `misc/main.spec` - full read. All relative paths resolve correctly from both the spec dir and the `dist/` working directory the orchestrator uses; version placeholders are replaced pre-compile. No bugs.
+- **Scoped out with reason:** `misc/build_scripts/{linux,macos}/` beyond `macos/_shared.sh` (read as the reference for the Windows fix - clean): upstream container/platform tooling for builds this fork does not ship. `*.metainfo.xml`, `.github/*` templates, docs/plans: non-executable metadata.
+
+## 2. Round 2 Summary
+
+| # | Area | Result |
+|---|---|---|
+| 1 | Same Format preset system (a02d329) re-review + persistence probe | clean |
+| 2 | `smallestLossless` SL4 (Round 1 open lead) | bug fixed (`c249ef4`) |
+| 3 | JXL intelligent-effort C2 (twin of #2) | bug fixed (`43f0eed`) |
+| 4 | `finishConversion` tmp-orphan exits (twin of #3) | bug fixed (`1fd48d6`) |
+| 5 | `settings_tab.py` (Round 1's missed file) | clean, first full review (`06bb71a`) |
+| 6 | Windows build scripts (Round 1 out of scope) | 1 bug fixed (`e33a547`), 4 leads cleared |
+| 7 | Test-suite class sweeps (dup keys, mock-assert names, mock truthiness, key producer/consumer) | 3 hygiene bugs fixed (`6ce6d58`), rest clean |
+| 8 | `test_convert.py` release gate | 2 bugs fixed (`eda410c`) + exposed missing `jpegtran.exe` build input |
+| 9 | Remaining tooling (test.py, Makefile, build.py, iss, spec) | clean; 2 upstream findings logged |
+
+Full pytest suite at end of round: 1038/1038. The `test_convert.py::test_dependencies` failure on this machine is real and intentional (missing `bin/win/jpegtran/jpegtran.exe` - restore it via `misc/build_scripts/windows/libjpeg-turbo.sh` or an official libjpeg-turbo 3.1.0 win64 build, then rebuild the portable bundle).
