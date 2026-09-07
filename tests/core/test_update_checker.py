@@ -211,3 +211,17 @@ def test_UpdateInfo_missing_required():
 
     with pytest.raises(ValueError, match="\"latest_version\" not found") as exc_info:
         update_info = update_checker.UpdateInfo.fromJson(json_data)
+
+def test_UpdateInfo_explicit_null_optional_fields():
+    json_data = {
+        "latest_version": "1.0.0",
+        "download_url": None,
+        "message": None,
+        "message_url": None,
+    }
+
+    update_info = update_checker.UpdateInfo.fromJson(json_data)
+    assert update_info.latest_version == json_data["latest_version"]
+    assert update_info.download_url == ""
+    assert update_info.message == ""
+    assert update_info.message_url == ""

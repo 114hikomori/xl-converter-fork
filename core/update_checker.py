@@ -122,8 +122,11 @@ class UpdateInfo:
             raise ValueError("Key \"latest_version\" not found in JSON response.")
         
         def getField(key: str) -> str:
-            value = json_data.get(key, "")
-            return str(value)
+            # A key can be present with an explicit JSON null (server's
+            # way of saying "no value" for an optional field) - treat
+            # that the same as a missing key, not as str(None) == "None".
+            value = json_data.get(key)
+            return str(value) if value is not None else ""
 
         return cls(
             latest_version=getField("latest_version"),
