@@ -169,3 +169,43 @@ def test_getArgs(encoder, mode, jpg_to_jxl_lossless, expected):
     assert metadata.getArgs(
         encoder, mode, jpg_to_jxl_lossless
     ) == expected
+
+def test__runExifTool_windows_runProcess2_exc_cleans_up_argfile():
+    # runProcess2() itself failing (e.g. EXIFTOOL_PATH missing/unspawnable)
+    # must not leak the already-written argfile, and the original error
+    # must propagate unchanged (not get replaced by an "M1" cleanup error).
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("core.metadata.runProcess2", side_effect=OSError("spawn failed")) as mock_run,
+        patch("os.unlink") as mock_unlink,
+        patch("tempfile.NamedTemporaryFile") as mock_tempfile,
+    ):
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/xl-converter/test.txt"
+        mock_tempfile.return_value.__enter__.return_value = mock_file
+
+        with pytest.raises(OSError) as exc:
+            metadata._runExifTool("-arg1", "-arg2")
+
+        assert "spawn failed" in str(exc.value)
+        mock_unlink.assert_called_once_with("/tmp/xl-converter/test.txt")
+
+
+def test__runExifTool_windows_runProcess2_exc_and_cleanup_also_fails():
+    # A secondary cleanup failure after runProcess2() already failed must not
+    # mask the original error either.
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("core.metadata.runProcess2", side_effect=OSError("spawn failed")),
+        patch("os.unlink", side_effect=OSError("unlink also failed")) as mock_unlink,
+        patch("tempfile.NamedTemporaryFile") as mock_tempfile,
+    ):
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/xl-converter/test.txt"
+        mock_tempfile.return_value.__enter__.return_value = mock_file
+
+        with pytest.raises(OSError) as exc:
+            metadata._runExifTool("-arg1", "-arg2")
+
+        assert "spawn failed" in str(exc.value)
+        mock_unlink.assert_called_once_with("/tmp/xl-converter/test.txt")

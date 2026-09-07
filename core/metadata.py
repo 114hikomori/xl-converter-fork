@@ -59,7 +59,17 @@ def _runExifTool(*args):
             except Exception as e:
                 raise FileException("M0", f"Failed to create an argfile. {e}")
             
-            runProcess2(EXIFTOOL_PATH, "-charset", "filename=UTF8", "-@", tmp_file_name, cwd=tmp_file_dir)
+            try:
+                runProcess2(EXIFTOOL_PATH, "-charset", "filename=UTF8", "-@", tmp_file_name, cwd=tmp_file_dir)
+            except Exception:
+                # The argfile was already confirmed written above, so best-effort
+                # clean it up before propagating - a secondary cleanup failure
+                # here must not mask/replace the original, more informative error.
+                try:
+                    os.unlink(tmp_file_path)
+                except OSError:
+                    pass
+                raise
 
             try:
                 os.unlink(tmp_file_path)
