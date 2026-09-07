@@ -107,6 +107,15 @@ def verifyJPEGXLReconstructionData(
     try:
         src_b2sum, target_b2sum = b2sum(org_path), b2sum(tmp_file_path)
     except Exception as e:
+        # tmp_file_path was confirmed to exist above, so best-effort clean it up
+        # before propagating the checksum error - the docstring promises it "will
+        # be removed", and this is otherwise the one exit path that used to skip
+        # that. A failure here is secondary to the checksum error, so it's not
+        # allowed to mask/replace it.
+        try:
+            os.remove(tmp_file_path)
+        except OSError:
+            pass
         raise FileException("jxl_verify_1", f"Calculating b2sum failed. {e}")
     
     # Remove tmp file

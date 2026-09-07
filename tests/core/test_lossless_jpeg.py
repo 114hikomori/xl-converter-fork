@@ -150,6 +150,8 @@ def test_verifyJPEGXLReconstructionData_checksum_calc_failed(verifyJPEGXLReconst
     assert excinfo.value.id == "jxl_verify_1"
     assert "Calculating b2sum failed" in excinfo.value.msg
     assert "OSError" in excinfo.value.msg
+    mocks["remove"].assert_called_once_with("/path/tmp.jpg")
+
 
 def test_verifyJPEGXLReconstructionData_remove_tmp_failed(verifyJPEGXLReconstructionData_patches):
     mocks = verifyJPEGXLReconstructionData_patches
@@ -214,3 +216,18 @@ def test_reconstructJPEGfromJPEGXL_missing_source(reconstructJPEGfromJPEGXL_patc
 def test_hasReconstructionData(stdout, stderr, expected):
     with patch("core.lossless_jpeg.runProcess2", return_value=(stdout, stderr)):
         assert lossless_jpeg.hasReconstructionData("/tmp/test.jxl") == expected
+
+def test_verifyJPEGXLReconstructionData_checksum_calc_failed_and_cleanup_also_fails(verifyJPEGXLReconstructionData_patches):
+    mocks = verifyJPEGXLReconstructionData_patches
+    mocks["b2sum"].side_effect = OSError("b2sum OSError")
+    mocks["remove"].side_effect = OSError("remove OSError")
+
+    with pytest.raises(FileException) as excinfo:
+        lossless_jpeg.verifyJPEGXLReconstructionData("/path/src.jpg", "/path/dst.jpg", "/path/tmp.jpg", 4)
+
+    # The checksum error is the original/primary failure; a secondary cleanup
+    # failure must not mask or replace it.
+    assert excinfo.value.id == "jxl_verify_1"
+    assert "Calculating b2sum failed" in excinfo.value.msg
+    assert "b2sum OSError" in excinfo.value.msg
+    mocks["remove"].assert_called_once_with("/path/tmp.jpg")
