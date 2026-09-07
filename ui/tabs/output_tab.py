@@ -401,6 +401,7 @@ class OutputTab(QWidget):
         self.wm.setEnabledByTag("jxl_losssy_modular", not lossless_checked)        
 
     def onJPEGEncoderChanged(self, encoder: str) -> None:
+        self.jpg_encoder = encoder
         if self.format_cmb.currentText() == "JPEG":
             self.chroma_subsampling_jpg_cmb.setVisible(encoder == "libjpeg")
             self.chroma_subsampling_jpegli_cmb.setVisible(encoder == "JPEGLI")

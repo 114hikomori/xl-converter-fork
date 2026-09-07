@@ -461,3 +461,18 @@ def test_delete_original_happy_path(app):
     app.delete_original_cb.setChecked(True)
     assert app.delete_original_cb.isEnabled()
     assert app.delete_original_cmb.isEnabled()
+
+def test_onJPEGEncoderChanged_updates_state_and_rereads_on_format_change(app):
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.chroma_subsampling_jpegli_cmb.isVisibleTo(app)
+    assert not app.chroma_subsampling_jpg_cmb.isVisibleTo(app)
+
+    # Encoder changed live while NOT on the JPEG format - state must be stored
+    app.format_cmb.setCurrentText("JPEG XL")
+    app.onJPEGEncoderChanged("libjpeg")
+    assert app.jpg_encoder == "libjpeg"
+
+    # Switching back must re-derive visibility from the updated value
+    app.format_cmb.setCurrentText("JPEG")
+    assert app.chroma_subsampling_jpg_cmb.isVisibleTo(app)
+    assert not app.chroma_subsampling_jpegli_cmb.isVisibleTo(app)
