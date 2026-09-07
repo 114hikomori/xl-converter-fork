@@ -422,3 +422,16 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   pyinstaller.cmd (upstream's new MSVC-bootloader PyInstaller v6.11.1
   setup) if the bootloader must match upstream; current env_build
   PyInstaller 6.22.2 pip wheel works (build + launch verified).
+
+- 2026-09-07 [Session E]: Upstream contribution attempt closed out —
+  branch `fixes/upstream-backport` (13 commits, 19 fixes upstream still
+  lacks, 1095/1095) pushed to origin as reference. PR not opened: repo's
+  CONTRIBUTING ignores PRs (licensing); the 7 consolidated bug-report
+  issues (#157-#163, AI-disclosed per owner instruction) were all
+  closed NOT_PLANNED by JacobDev1 within ~30 min with the policy
+  "Do not submit AI-generated reports. Only submit issues affecting
+  functionality you can reproduce personally" - plus a fair criticism
+  that gh/REST submission bypassed their disabled-blank-issues form.
+  LESSON (binding for future sessions): do not file issues/PRs on
+  JacobDev1/xl-converter from agent-driven work - ever again; keep
+  fixes in this fork only. Issues left closed as record per owner.
