@@ -391,15 +391,20 @@ class Worker(QRunnable):
                 args[1] = "-e 9"
                 runBinary(encoder, args, self.item_abs_path, path_e9, delete_if_canceled=[path_e7, path_e9])
 
+                # Promote the winner first: a locked loser must never abort
+                # it, and every failure exit cleans up both candidates.
                 try:
                     if os.path.getsize(path_e9) < os.path.getsize(path_e7):
-                        os.remove(path_e7)
-                        os.rename(path_e9, self.output)
+                        winner, loser = path_e9, path_e7
                     else:
-                        os.remove(path_e9)
-                        os.rename(path_e7, self.output)
+                        winner, loser = path_e7, path_e9
+
+                    os.rename(winner, self.output)
                 except OSError as err:
+                    cleanUp([path_e7, path_e9])
                     raise FileException("C2", err)
+
+                cleanUp([loser])
             else:   # Regular conversion
                 stdout, stderr = runBinary(encoder, args, self.item_abs_path, self.output, args_after_input=(encoder == IMAGE_MAGICK_PATH))
                 if not os.path.isfile(self.output):
@@ -431,7 +436,7 @@ class Worker(QRunnable):
         if self.proxy.proxyExists():
             try:
                 self.proxy.cleanUp()
-            except OSError as err:
+            except FileException as err:
                 raise FileException("F0", f"Failed to delete proxy. {err}")
             self.item_abs_path = self.org_item_abs_path   # Redirect the source back to original file
         
@@ -491,7 +496,14 @@ class Worker(QRunnable):
                     self.final_output = getUniqueFilePath(self.output_dir, self.item_name, self.item_ext)
                     shutil.copyfile(self.org_item_abs_path, self.final_output)  # Avoid preserving "Read-only" attribute on Windows, as it will conflict with preserving time attributes later on.
         except OSError as err:
+            cleanUp([self.output])
             raise FileException("F1", f"Conversion could not finish. {err}")
+        except FileException:
+            # F3 (empty output) and M* (ExifTool) exits must not orphan the
+            # converted tmp either; the original exception re-propagates
+            # unchanged. (F2: the file does not exist - cleanUp no-ops.)
+            cleanUp([self.output])
+            raise
 
     def postConversionRoutines(self):
         if not os.path.isfile(self.final_output):    # Checking if renaming was successful
@@ -621,13 +633,10 @@ class Worker(QRunnable):
         # Get the smallest file
         sm_f_key = min(path_pool, key=lambda key: file_sizes[key])
 
-        # Remove bigger files
-        for key in path_pool:
-            if key != sm_f_key:
-                try:
-                    os.remove(path_pool[key])
-                except OSError as err:
-                    raise FileException("SL4", f"Failed to delete tmp files. {err}")
+        # Remove bigger files - best-effort: a locked loser must never discard
+        # the already-determined winner (cleanUp() logs its own errors and
+        # never raises).
+        cleanUp([path for key, path in path_pool.items() if key != sm_f_key])
 
         # Handle the smallest file
         self.output = path_pool[sm_f_key]
@@ -710,7 +719,14 @@ class Worker(QRunnable):
                 raise FileException(err_id, err_msg)
 
         if self.params["jxl_verify"]:
-            _verify()
+            try:
+                _verify()
+            except FileException:
+                # Verification failed - the normalized tmp must not be left
+                # behind; re-raise the original, more informative error.
+                if normalized_jpeg_path:
+                    remove(normalized_jpeg_path, exc_id="lossless_jpeg_8")
+                raise
         
         if normalized_jpeg_path:
             remove(normalized_jpeg_path, exc_id="lossless_jpeg_7")

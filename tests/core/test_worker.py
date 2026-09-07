@@ -24,7 +24,6 @@ def worker():
             "custom_output_dir_path": "",
             "keep_dir_struct": False,
             "if_file_exists": "Rename",
-            "downscaling": {"enabled": False},
             "delete_original": False,
             "delete_original_mode": "To Trash",
             "smallest_format_pool": {"png": True, "webp": True, "jxl": True},
@@ -545,7 +544,6 @@ def finishConversion_patches(worker):
         "removeFile": patch("core.worker.removeFile"),
         "send2trash": patch("core.worker.send2trash"),
         "rename": patch("core.worker.os.rename"),
-        "removeFile": patch("core.worker.removeFile"),
         "getsize": patch("core.worker.os.path.getsize", return_value=300_000),
         "isfile": patch("core.worker.os.path.isfile", side_effect=[True, True, True]),
         "getUniqueFilePath": patch("core.worker.getUniqueFilePath", return_value="final/path/img.jpg"),
@@ -582,21 +580,27 @@ def test_finishConversion_no_proxy(finishConversion_patches):
 
 def test_finishConversion_no_output(finishConversion_patches):
     worker, mocks = finishConversion_patches
-    mocks["isfile"].side_effect = [False, True, True]
+    worker.output = "temp/path/img.jpg"
+    mocks["isfile"].side_effect = [False, False, True]   # 2nd call: cleanUp's existence check - file is gone (F2)
 
     with pytest.raises(FileException) as exc:
         worker.finishConversion()
 
     assert "output not found" in exc.value.msg
+    mocks["remove"].assert_not_called()   # nothing to clean up (F2)
+
 
 def test_finishConversion_empty_output(finishConversion_patches):
     worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
     mocks["getsize"].return_value = 0
 
     with pytest.raises(FileException) as exc:
         worker.finishConversion()
 
     assert "output is empty" in exc.value.msg
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")   # F3 must not orphan the tmp
+
 
 @pytest.mark.parametrize("mode", ["Rename", "Skip"])
 def test_finishConversion_rename_or_skip(finishConversion_patches, mode):
@@ -865,7 +869,6 @@ def smallestLossless_patches_v2():
         "runBinary": patch("core.worker.runBinary", return_value=("", "")),
         "remove": patch("core.worker.os.remove"),
         "os.path.isfile": patch("core.worker.os.path.isfile", return_value=True),
-        "os.path.isfile": patch("core.worker.os.path.isfile", return_value=True),
         "cleanUp": patch("core.worker.cleanUp"),
     }
 
@@ -986,15 +989,6 @@ def test_smallestLossless_getsize_failed_cleanup_failed(smallestLossless_patches
     for path in ["tmp/image.png", "tmp/image.webp","tmp/image.jxl"]:
         assert path in mocks["cleanUp"].call_args_list[0][0][0]
 
-def test_smallestLossless_remove_bigger_failed(smallestLossless_patches_v2, worker):
-    mocks = smallestLossless_patches_v2
-    mocks["remove"].side_effect = OSError()
-    with pytest.raises(FileException) as exc:
-        worker.smallestLossless()
-
-    assert "Failed to delete tmp files" in exc.value.msg
-    assert "SL4" in exc.value.id
-    assert mocks["remove"].call_count == 1
 
 @pytest.mark.parametrize("jxl_auto_lossless_jpeg", [True, False])
 def test_smallestLossless_args(jxl_auto_lossless_jpeg, smallestLossless_patches_v2, worker):
@@ -1447,3 +1441,93 @@ def test_PNGOptimization_canceled(PNGOptimization_patches, worker):
         worker.PNGOptimization()
 
     PNGOptimization_patches["isfile"].assert_not_called()  # The code after runOxipng not reached
+
+def test_losslesslyTranscodeJPEG_normalize_always_verify_failed(worker_losslesslyTranscodeJPEG_patches):
+    worker, mocks, variables = worker_losslesslyTranscodeJPEG_patches
+    worker.params["jxl_normalize_enable"] = True
+    worker.params["jxl_normalize_when"] = "Always"
+    worker.params["jxl_verify"] = True
+    mocks["verifyJPEGXLReconstructionData"].return_value = (False, "", "Checksum mismatch")
+
+    with pytest.raises(FileException) as exc_info:
+        worker.losslesslyTranscodeJPEG()
+
+    assert exc_info.value.id == "lossless_jpeg_0"
+    # The normalized tmp JPEG must be cleaned up even though verification
+    # failed and raised before the trailing (happy-path) cleanup line ran.
+    mocks["remove"].assert_any_call(variables["output"], exc_id="lossless_jpeg_1")
+    mocks["remove"].assert_any_call(mocks["getUniqueTmpFilePath"].return_value, exc_id="lossless_jpeg_8")
+    assert mocks["remove"].call_count == 2
+
+
+def test_convert_jpeg_xl_intelligent_effort_loser_remove_failed_keeps_winner(worker_convert_patches):
+    # Regression: a locked loser file must not abort the winner's promotion
+    # (real cleanUp semantics over an always-failing os.remove).
+    worker, mocks = worker_convert_patches
+    mocks["getsize"].side_effect = [300_000, 400_000]
+    mocks["getUniqueTmpFilePath"].side_effect = ["path_e7", "path_e9"]
+    mocks["remove"].side_effect = OSError()
+    worker.params["format"] = "JPEG XL"
+    worker.params["intelligent_effort"] = True
+
+    worker.convert()
+
+    mocks["rename"].assert_called_once_with("path_e9", worker.output)
+
+
+def test_convert_jpeg_xl_intelligent_effort_getsize_failed_cleans_up(worker_convert_patches):
+    # Regression: the C2 failure exit must not orphan either tmp candidate.
+    worker, mocks = worker_convert_patches
+    mocks["getsize"].side_effect = OSError()
+    mocks["getUniqueTmpFilePath"].side_effect = ["path_e7", "path_e9"]
+    worker.params["format"] = "JPEG XL"
+    worker.params["intelligent_effort"] = True
+
+    with pytest.raises(FileException) as exc:
+        worker.convert()
+
+    assert exc.value.id == "C2"
+    assert {c[0][0] for c in mocks["remove"].call_args_list} == {"path_e7", "path_e9"}
+    mocks["rename"].assert_not_called()
+
+
+def test_smallestLossless_remove_bigger_failed_keeps_winner(smallestLossless_patches_v2, worker):
+    # Regression: a locked loser file must not discard the already-determined
+    # winner. Real cleanUp semantics (swallow+log) run over a patched
+    # os.remove that always fails; the conversion must still complete.
+    from core.convert import cleanUp as real_cleanUp
+
+    mocks = smallestLossless_patches_v2
+    mocks["cleanUp"].side_effect = real_cleanUp
+    mocks["remove"].side_effect = OSError()
+
+    worker.smallestLossless()
+
+    assert worker.output == "tmp/image.jxl"
+    assert worker.output_ext == "jxl"
+    assert worker.final_output.endswith(".jxl")
+
+
+def test_finishConversion_exiftool_failure_cleans_up_output(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.runExifTool = MagicMock(side_effect=FileException("M1", "exiftool failed"))
+
+    with pytest.raises(FileException) as exc:
+        worker.finishConversion()
+
+    assert exc.value.id == "M1"   # original error preserved
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")
+
+
+def test_finishConversion_rename_failure_cleans_up_output(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    mocks["rename"].side_effect = OSError()
+
+    with pytest.raises(FileException) as exc:
+        worker.finishConversion()
+
+    assert exc.value.id == "F1"
+    mocks["remove"].assert_called_once_with("temp/path/img.jpg")
