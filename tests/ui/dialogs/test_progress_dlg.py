@@ -60,3 +60,21 @@ def test_wasCanceled_instance(progress_dialog):
 
 def test_wasCanceled_none(progress_dialog):
     assert progress_dialog.wasCanceled() == False
+
+def test_updatePosition_moves_dialog_after_canceled(progress_dialog):
+    """Regression test: updatePosition() must keep following the parent
+    for as long as self.dlg is set, including during the window between
+    a cancel and the eventual finished() call."""
+    parent_geo = MagicMock(x=lambda: 0, y=lambda: 0, width=lambda: 400, height=lambda: 300)
+    dlg_geo = MagicMock(x=lambda: 0, y=lambda: 0, width=lambda: 350, height=lambda: 115)
+
+    progress_dialog.parent = MagicMock()
+    progress_dialog.parent.frameGeometry.return_value = parent_geo
+
+    progress_dialog.dlg = MagicMock(spec=QProgressDialog)
+    progress_dialog.dlg.frameGeometry.return_value = dlg_geo
+
+    progress_dialog._canceled()  # dlg stays set through the cancel-to-finish window
+    progress_dialog.updatePosition()
+
+    progress_dialog.dlg.move.assert_called_once()
