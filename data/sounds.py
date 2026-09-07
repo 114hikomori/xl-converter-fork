@@ -13,7 +13,7 @@ class SoundPlayer:
         """Plays a sound. Requires QApplication initialized."""
         if self.sound is None:
             self.sound = QSoundEffect()     # Requires QApplication to be init first
-            self.sound.setVolume(volume)    # Default volume
+            self.sound.setVolume(self.volume if volume is None else volume)    # Default volume
         if not self.sound.isLoaded():
             self.sound.setSource(QUrl.fromLocalFile(self.audio_path))
         if volume is not None:
