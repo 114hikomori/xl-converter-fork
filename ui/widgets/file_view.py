@@ -120,6 +120,7 @@ class FileView(QTreeWidget):
         event.accept()
 
         items = []
+        rejected = []
         preserve_parent = len(event.mimeData().urls()) > 1
         flatpak_permisssion_err = False
 
@@ -150,6 +151,8 @@ class FileView(QTreeWidget):
                                     Path(path).parent if preserve_parent else Path(path),
                                 )
                             )
+                        else:
+                            rejected.append(file_path.name)
 
                 elif os.path.isfile(path):  # Single file
                     file_path = Path(path)
@@ -164,9 +167,17 @@ class FileView(QTreeWidget):
                                 Path(file_path).parent,
                             )
                         )
+                    else:
+                        rejected.append(file_path.name)
 
         if flatpak_permisssion_err:
             message_box.info(self, "Permission Error", "Insufficient Flatpak permissions.\nAdd filesystem permissions to the source directory or the mounted volume.")
+
+        if rejected:
+            shown = ", ".join(rejected[:10])
+            if len(rejected) > 10:
+                shown += f"\n\n...and {len(rejected) - 10} more."
+            message_box.info(self, "Unsupported Files", f"{len(rejected)} file(s) were not added because their format is not supported:\n\n{shown}")
 
         if not items:
             return
@@ -199,11 +210,13 @@ class FileView(QTreeWidget):
                 if shift_pressed:
                     self.selectItemsAbove()
                 else:
+                    self.shift_start = None
                     self.moveIndexToTop()
             case Qt.Key_End:
                 if shift_pressed:
                     self.selectItemsBelow()
                 else:
+                    self.shift_start = None
                     self.moveIndexToBottom()
             case Qt.Key_PageUp:
                 self.movePage("up", shift_pressed)
@@ -223,6 +236,7 @@ class FileView(QTreeWidget):
         current_item = self.currentItem()
         root = self.invisibleRootItem()
         if current_item:
+            self.shift_start = current_item
             current_index = self.indexFromItem(current_item)
             last_item = root.child(root.childCount() - 1)
             last_index = self.indexFromItem(last_item)
@@ -239,6 +253,7 @@ class FileView(QTreeWidget):
         current_item = self.currentItem()
         root = self.invisibleRootItem()
         if current_item:
+            self.shift_start = current_item
             current_index = self.indexFromItem(current_item)
             first_item = root.child(0)
             first_index = self.indexFromItem(first_item)

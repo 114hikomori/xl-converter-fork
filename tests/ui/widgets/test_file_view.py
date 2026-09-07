@@ -3,10 +3,15 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem
-from PySide6.QtCore import Qt, QMimeData, QUrl, QModelIndex, QItemSelectionModel
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import Qt, QMimeData, QUrl, QModelIndex, QItemSelectionModel, QEvent
+from PySide6.QtGui import QPainter, QKeyEvent
 
 import ui.widgets.file_view as file_view_module
+
+def press_key(file_view, key, shift=False):
+    """Dispatches a real key press through FileView.keyPressEvent()."""
+    mods = Qt.ShiftModifier if shift else Qt.NoModifier
+    file_view.keyPressEvent(QKeyEvent(QEvent.KeyPress, key, mods))
 
 @pytest.fixture
 def file_view(qtbot):
@@ -473,3 +478,72 @@ def test_movePage_select(file_view_movePage_patched):
     selection = selection_model.select.call_args[0][0]
     assert selection.indexes() == [file_view.indexFromItem(cur_item)]
     assert selection_model.select.call_args[0][1] == QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
+
+def test_selectItemsBelow_sets_shift_start(file_view):
+    file_view.addItems(get_sample_items(4))
+
+    file_view.setCurrentItem(file_view.topLevelItem(1))
+    file_view.selectItemsBelow()
+
+    assert file_view.shift_start == file_view.topLevelItem(1)
+
+
+def test_selectItemsAbove_sets_shift_start(file_view):
+    file_view.addItems(get_sample_items(4))
+
+    file_view.setCurrentItem(file_view.topLevelItem(2))
+    file_view.selectItemsAbove()
+
+    assert file_view.shift_start == file_view.topLevelItem(2)
+
+
+def test_keyPressEvent_home_resets_shift_start(file_view):
+    file_view.addItems(get_sample_items(4))
+    file_view.shift_start = file_view.topLevelItem(0)  # stale anchor from an earlier shift-drag
+
+    press_key(file_view, Qt.Key_Home, shift=False)
+
+    assert file_view.shift_start is None
+
+
+def test_keyPressEvent_end_resets_shift_start(file_view):
+    file_view.addItems(get_sample_items(4))
+    file_view.shift_start = file_view.topLevelItem(0)  # stale anchor from an earlier shift-drag
+
+    press_key(file_view, Qt.Key_End, shift=False)
+
+    assert file_view.shift_start is None
+
+
+def test_stale_anchor_cleared_by_plain_end_then_shift_up(file_view):
+    """Regression: a plain End after a shift-selection used to leave the old
+    anchor in place, so a later Shift+Up would resume extending from it
+    instead of the freshly-focused (last) item."""
+    file_view.addItems(get_sample_items(6))
+
+    file_view.setCurrentItem(file_view.topLevelItem(1))
+    press_key(file_view, Qt.Key_Down, shift=True)   # shift_start -> item1, selects [1,2]
+    press_key(file_view, Qt.Key_End, shift=False)   # plain End -> current item5, must clear shift_start
+    press_key(file_view, Qt.Key_Up, shift=True)      # Shift+Up -> should extend by one from item5
+
+    for i in range(4):
+        assert file_view.topLevelItem(i).isSelected() == False
+    assert file_view.topLevelItem(4).isSelected() == True
+    assert file_view.topLevelItem(5).isSelected() == True
+
+
+def test_shift_end_then_shift_up_shrinks_correctly(file_view):
+    """Regression: Shift+End used to leave shift_start unset, so a later
+    Shift+Up would anchor off the post-jump (last) item instead of the
+    item the selection started from, collapsing the selection instead of
+    shrinking it by one."""
+    file_view.addItems(get_sample_items(6))
+
+    file_view.setCurrentItem(file_view.topLevelItem(1))
+    press_key(file_view, Qt.Key_End, shift=True)   # Shift+End -> selects [1..5]
+    press_key(file_view, Qt.Key_Up, shift=True)     # Shift+Up -> should shrink to [1..4]
+
+    assert file_view.topLevelItem(0).isSelected() == False
+    for i in range(1, 5):
+        assert file_view.topLevelItem(i).isSelected() == True
+    assert file_view.topLevelItem(5).isSelected() == False
