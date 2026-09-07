@@ -327,3 +327,11 @@ def test_jpegXlHighRamUsage(effort, jxl_modular, lossless, intelligent_effort, e
     assert ram_optimizer.jpegXlHighRamUsage(
         effort, jxl_modular, lossless, intelligent_effort
     ) == expected
+
+def test_parseOptimizationRules_target_exceeds_1_rejected(caplog):
+    # A fraction above 1 would increase worker count past used_thread_count,
+    # which can floor new_thread_count_per_worker to 0 in run().
+    caplog.set_level(logging.ERROR)
+    parsed_rules = RAMOptimizer.parseOptimizationRules('("all", 10, "3/2")')
+    assert parsed_rules == []
+    assert "cannot exceed 1" in caplog.text
