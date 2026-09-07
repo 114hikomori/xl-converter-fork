@@ -22,7 +22,35 @@ if IS_WINDOWS:
             ("dwLowDateTime", wintypes.DWORD),
             ("dwHighDateTime", wintypes.DWORD),
         ]
-    
+
+    # Explicit argtypes/restype are required here: CreateFileW returns a
+    # pointer-sized HANDLE (64-bit on Win64). Without this, ctypes defaults
+    # the return type to a 32-bit c_int, which silently truncates a genuine
+    # INVALID_HANDLE_VALUE failure return down to a value that no longer
+    # equals INVALID_HANDLE below - masking real CreateFileW failures
+    # (file not found, locked, access denied) instead of raising for them.
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,  # lpFileName
+        wintypes.DWORD,    # dwDesiredAccess
+        wintypes.DWORD,    # dwShareMode
+        wintypes.LPVOID,   # lpSecurityAttributes
+        wintypes.DWORD,    # dwCreationDisposition
+        wintypes.DWORD,    # dwFlagsAndAttributes
+        wintypes.HANDLE,   # hTemplateFile
+    ]
+
+    kernel32.SetFileTime.restype = wintypes.BOOL
+    kernel32.SetFileTime.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(FILETIME),
+        ctypes.POINTER(FILETIME),
+        ctypes.POINTER(FILETIME),
+    ]
+
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
     def _unix_to_filetime_ns(ns: int) -> FILETIME:
         ticks = ns // 100
         ft = ticks + EPOCH_AS_FILETIME
