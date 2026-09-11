@@ -314,6 +314,13 @@ class Worker(QRunnable):
                         args.append("-c aom")
                         if self.params["aom_av1_chroma_subsampling"] != "Default":
                             args.append(f"-y {self.params['aom_av1_chroma_subsampling'].replace(':', '')}")
+                        # avifenc's default 444 output stores 601-encoded planes (MC=6),
+                        # but Windows WIC - the engine behind Photos - ignores the ICC
+                        # and assumes 444 planes are identity RGB, rendering such files
+                        # with a yellow/purple cast. Store 444 as identity (MC=0) so
+                        # both readings agree. 4:2:0/4:2:2 output is signalled correctly.
+                        if self.params["aom_av1_chroma_subsampling"] in ("Default", "4:4:4"):
+                            args.append("--cicp 2/2/0")
                         # Affects color only, alpha uses the default.
                         if self.settings["avif_aom_iq_tune"]:  # libaom version >= v3.12.0
                             args.append("-a c:tune=iq")

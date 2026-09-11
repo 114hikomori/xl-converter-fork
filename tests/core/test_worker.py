@@ -405,8 +405,8 @@ def test_convert_jpeg_xl_error_default(worker_convert_patches):
     assert "Error message" in exc_info.value.msg 
 
 @pytest.mark.parametrize("encoder, quality, speed, chroma_subsampling, expected_args", [
-    ("AOM AV1", 80, 6, "Default", ["-q 80", "-s 6", "-j 4", "-c aom", "-a c:tune=ssim"]),
-    ("AOM AV1", 80, 6, "4:4:4", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 444", "-a c:tune=ssim"]),
+    ("AOM AV1", 80, 6, "Default", ["-q 80", "-s 6", "-j 4", "-c aom", "--cicp 2/2/0", "-a c:tune=ssim"]),
+    ("AOM AV1", 80, 6, "4:4:4", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 444", "--cicp 2/2/0", "-a c:tune=ssim"]),
     ("AOM AV1", 80, 6, "4:2:2", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 422", "-a c:tune=ssim"]),
     ("AOM AV1", 80, 6, "4:2:0", ["-q 80", "-s 6", "-j 4", "-c aom", "-y 420", "-a c:tune=ssim"]),
     ("SVT-AV1-PSY", 90, 5, "4:4:4", ["-q 90", "-s 5", "-j 4", "-c svt", "-y 420", "-a tune=4"]),
