@@ -435,3 +435,11 @@ Constraint from owner: "ดัดแปลงในแบบที่ง่า�
   LESSON (binding for future sessions): do not file issues/PRs on
   JacobDev1/xl-converter from agent-driven work - ever again; keep
   fixes in this fork only. Issues left closed as record per owner.
+
+- 2026-09-14 [Session F]: Context-engineering pass — `AGENTS.md` rewritten
+  as the real project rules file (tech stack, commands, conventions,
+  boundaries, project map) while keeping the existing skills/fable blocks;
+  fixed its stale "instruction layer for compare-image" footer and the
+  wrong `.opencode/skills/` path claim. Resolved the dirty git state left
+  by an earlier rename (tracked `CLAUDE.md` stub deleted, `AGENTS.md`
+  untracked) in the same commit.
