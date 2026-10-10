@@ -35,6 +35,7 @@ import data.task_status as task_status
 from core.exceptions import CancellationException, GenericException, FileException
 import core.conflicts as conflicts
 import core.same_format as same_format
+from core.oxipng_level import DEFAULT_OXIPNG_LEVEL, oxipngLevelArgs
 from core.utils import getFreeSpaceLeft, remove
 import core.lossless_jpeg as lossless_jpeg
 from core.ram_optimizer import RAMOptimizer
@@ -376,7 +377,7 @@ class Worker(QRunnable):
                     # source already is one), then optimize/quantize it.
                     if self.params.get("lossless", True):
                         encoder = OXIPNG_PATH
-                        png_stage_b = ["-o", "2", "-t", str(self.available_threads)]
+                        png_stage_b = [*oxipngLevelArgs(self.params.get("png_level", DEFAULT_OXIPNG_LEVEL)), "-t", str(self.available_threads)]
                     else:
                         encoder = PNGQUANT_PATH
                         png_stage_b = [f"--quality=0-{self.params.get('quality', 80)}"]

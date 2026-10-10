@@ -2,9 +2,10 @@ from unittest.mock import patch, ANY, MagicMock
 
 import pytest
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt, QDir
+from PySide6.QtCore import Qt, QDir, QPoint
 
 from ui.tabs.output_tab import OutputTab
+from core.oxipng_level import DEFAULT_OXIPNG_LEVEL
 
 @pytest.fixture
 def app(qtbot):
@@ -156,7 +157,7 @@ def test_onFormatChange_lossless_toggled(app):
     ("AVIF", ["quality", "effort", "chroma_subsampling"]),
     ("WebP", ["quality", "effort", "lossless"]),
     ("JPEG", ["quality", "chroma_subsampling"]),
-    ("PNG", ["quality", "lossless"]),
+    ("PNG", ["quality", "lossless", "effort"]),
     ("Lossless JPEG Transcoding", ["effort", "jxl_verify", "jxl_normalize"]),
     ("JPEG Reconstruction", ["png_fallback"]),
     ("Smallest Lossless", ["smallest_lossless"]),
@@ -593,3 +594,98 @@ def test_delete_original_happy_path(app):
     app.delete_original_cb.setChecked(True)
     assert app.delete_original_cb.isEnabled()
     assert app.delete_original_cmb.isEnabled()
+
+
+def test_png_level_row_only_for_lossless_png(app):
+    app.format_cmb.setCurrentText("PNG")
+    assert app.lossless_cb.isChecked()
+    assert app.effort_sb.isVisibleTo(app)
+    assert app.effort_l.text() == "Level"
+    assert app.effort_sb.maximum() == 9
+
+    app.lossless_cb.setChecked(False)
+    assert not app.effort_sb.isVisibleTo(app)
+
+    app.lossless_cb.setChecked(True)
+    app.onPNGEncoderChanged("Legacy (ImageMagick)")
+    assert not app.effort_sb.isVisibleTo(app)
+
+    app.onPNGEncoderChanged("Oxipng")
+    app.format_cmb.setCurrentText("JPEG XL")
+    assert app.effort_sb.isVisibleTo(app)
+    assert app.effort_l.text() == "Effort"
+
+def test_png_level_settings_and_per_format_memory(app):
+    app.format_cmb.setCurrentText("PNG")
+    app.effort_sb.setValue(6)
+    assert app.getSettings()["png_level"] == 6
+
+    app.format_cmb.setCurrentText("AVIF")
+    app.format_cmb.setCurrentText("PNG")
+    assert app.effort_sb.value() == 6
+
+    app.format_cmb.setCurrentText("Same Format")
+    assert app.getSettings()["png_level"] == DEFAULT_OXIPNG_LEVEL
+
+def test_reset_to_defaults_restores_png_level(app):
+    app.format_cmb.setCurrentText("PNG")
+    app.effort_sb.setValue(8)
+    app.resetToDefault()
+    assert app.effort_sb.value() == DEFAULT_OXIPNG_LEVEL
+
+def test_same_format_lossless_disables_quality(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Custom")
+    app.sf_png_lossless_cb.setChecked(True)
+    assert not app.sf_png_q_sb.isEnabled()
+
+    app.sf_png_lossless_cb.setChecked(False)
+    assert app.sf_png_q_sb.isEnabled()
+
+def test_same_format_custom_rows_share_columns(app, qtbot):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Custom")
+    app.resize(1040, 520)
+    app.show()
+    qtbot.waitExposed(app)
+
+    def x_in_tab(widget):
+        return widget.mapTo(app, QPoint(0, 0)).x()
+
+    quality_spins = (app.sf_png_q_sb, app.sf_jxl_q_sb, app.sf_webp_q_sb, app.sf_avif_q_sb, app.sf_jpeg_q_sb)
+    assert len({x_in_tab(w) for w in quality_spins}) == 1
+    assert x_in_tab(app.effort_sb) == x_in_tab(app.sf_png_q_sb)
+    assert x_in_tab(app.sf_preset_cmb) == x_in_tab(app.sf_png_q_sb)
+    assert x_in_tab(app.sf_jpeg_route_cmb) == x_in_tab(app.sf_png_q_sb)
+
+
+def test_same_format_custom_stays_clear_in_a_short_scroll_area(app, qtbot):
+    from PySide6.QtWidgets import QWidget
+    from ui.widgets.scroll_area import ScrollArea
+
+    # Same as the main window: the Output tab sits in a ScrollArea, in a 320px-high window.
+    scroll = ScrollArea()
+    qtbot.addWidget(scroll)
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Custom")
+    scroll.setWidget(app)
+    scroll.resize(703, 320)
+    scroll.show()
+    qtbot.waitExposed(scroll)
+
+    group = app.format_grp
+    assert group.height() >= group.sizeHint().height()
+    rows = [w for w in group.children() if isinstance(w, QWidget) and w.isVisible()]
+    for i, a in enumerate(rows):
+        assert group.rect().contains(a.geometry())
+        for b in rows[i + 1:]:
+            assert not a.geometry().intersects(b.geometry())
+    scroll.takeWidget()    # Hand the tab back, so its fixture can tear it down (the scroll area is deleted at teardown)
+
+def test_height_limit_follows_content(app):
+    app.format_cmb.setCurrentText("Same Format")
+    app.sf_preset_cmb.setCurrentText("Custom")
+    assert app.maximumHeight() == max(320, app.sizeHint().height())
+
+    app.format_cmb.setCurrentText("JPEG XL")
+    assert app.maximumHeight() == max(320, app.sizeHint().height())

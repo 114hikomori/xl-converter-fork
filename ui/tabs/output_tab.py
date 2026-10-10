@@ -24,11 +24,24 @@ from PySide6.QtCore import(
 
 from data.constants import JPEG_ALIASES
 from core import same_format
+from core.oxipng_level import DEFAULT_OXIPNG_LEVEL, MAX_OXIPNG_LEVEL
 from core.utils import dictToList
 from ui.lib import WidgetManager
 from ui.lib.utils import setToolTip, isPathValidStr, createQHBoxLayout, blockSignals
 from ui.widgets import Slider, ComboBox, SpinBox
 from ui.dialogs import message_box
+
+# Shared width of the Format group's row labels, so every control in the group starts at the same x.
+FORMAT_LABEL_WIDTH = 125
+
+# The tab stays at this height at most, unless its content is taller (see OutputTab._updateHeightLimit).
+MAX_HEIGHT_LIMIT = 320
+
+def _fixedRow(*widgets) -> QHBoxLayout:
+    """A row of fixed-size controls. Left-aligned, otherwise Qt centers it inside the group box."""
+    row = createQHBoxLayout(*widgets)
+    row.setAlignment(Qt.AlignLeft)
+    return row
 
 class OutputTab(QWidget):
     convert = Signal()
@@ -74,6 +87,22 @@ class OutputTab(QWidget):
         # Variables
         self.cached_states = self.getSettings()
     
+    def _updateHeightLimit(self) -> None:
+        """Keeps the Format group at its content height, and caps the tab at MAX_HEIGHT_LIMIT or its content height if taller.
+
+        A cap or row minimum smaller than the content lets the layout squeeze the Format group, so its rows overlap.
+        """
+        # Visibility changes made while the tab is hidden can leave cached size hints stale, so drop them first.
+        self.format_grp.layout().invalidate()
+        self.format_grp.setMinimumHeight(self.format_grp.sizeHint().height())
+        self.layout().invalidate()
+        content_height = max(self.sizeHint().height(), self.minimumSizeHint().height())
+        self.setMaximumHeight(max(MAX_HEIGHT_LIMIT, content_height))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._updateHeightLimit()    # Changes made while hidden (e.g. from Settings) are measured once the tab is visible.
+
     def _setupWidgets(self):
         # Conversion
         self.threads_sl = self.wm.addWidget("threads_sl", Slider())
@@ -195,16 +224,17 @@ class OutputTab(QWidget):
         # Format
         self.format_grp = QGroupBox("Format")
         self.format_grp_lt = QVBoxLayout(self.format_grp)
-        self.format_grp_lt.addLayout(createQHBoxLayout(QLabel("Format / Mode"), self.format_cmb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.effort_l, self.int_effort_cb, self.effort_sb))
+        self.format_mode_l = QLabel("Format / Mode")
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.format_mode_l, self.format_cmb))
+        self.format_grp_lt.addLayout(_fixedRow(self.effort_l, self.int_effort_cb, self.effort_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.quality_l, self.quality_sl, self.quality_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.lossless_cb, self.jxl_modular_cb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_preset_l, self.sf_preset_cmb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_png_l, self.sf_png_lossless_cb, self.sf_png_q_sb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jxl_l, self.sf_jxl_lossless_cb, self.sf_jxl_q_sb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_webp_l, self.sf_webp_lossless_cb, self.sf_webp_q_sb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_avif_l, self.sf_avif_q_sb))
-        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jpeg_l, self.sf_jpeg_q_sb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_png_l, self.sf_png_q_sb, self.sf_png_lossless_cb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jxl_l, self.sf_jxl_q_sb, self.sf_jxl_lossless_cb))
+        self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_webp_l, self.sf_webp_q_sb, self.sf_webp_lossless_cb))
+        self.format_grp_lt.addLayout(_fixedRow(self.sf_avif_l, self.sf_avif_q_sb))
+        self.format_grp_lt.addLayout(_fixedRow(self.sf_jpeg_l, self.sf_jpeg_q_sb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.sf_jpeg_route_l, self.sf_jpeg_route_cmb))
         self.format_grp_lt.addLayout(createQHBoxLayout(self.smallest_lossless_png_cb, self.smallest_lossless_webp_cb, self.smallest_lossless_jxl_cb))
         self.format_grp_lt.addWidget(self.max_compression_cb)
@@ -228,7 +258,6 @@ class OutputTab(QWidget):
         
         # Size policies
         self.main_lt.setAlignment(Qt.AlignTop)
-        self.main_lt.setRowMinimumHeight(0, 150)
         self.format_grp.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.conv_grp.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.after_conv_grp.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -236,6 +265,14 @@ class OutputTab(QWidget):
         self.format_cmb.setMinimumWidth(220)
         self.threads_sb.setFixedWidth(55)
         self.quality_sb.setFixedWidth(55)
+        # Same label width and spinbox width everywhere in the Format group, so the controls line up.
+        for label in (
+            self.format_mode_l, self.effort_l, self.quality_l, self.chroma_subsampling_l, self.sf_preset_l,
+            self.sf_png_l, self.sf_jxl_l, self.sf_webp_l, self.sf_avif_l, self.sf_jpeg_l, self.sf_jpeg_route_l,
+        ):
+            label.setFixedWidth(FORMAT_LABEL_WIDTH)
+        for spin in (self.effort_sb, self.sf_png_q_sb, self.sf_jxl_q_sb, self.sf_webp_q_sb, self.sf_avif_q_sb, self.sf_jpeg_q_sb):
+            spin.setFixedWidth(55)
 
     def _setupSignals(self):
         self.threads_sl.valueChanged.connect(lambda n: self.threads_sb.setValue(n))
@@ -256,6 +293,11 @@ class OutputTab(QWidget):
         self.jxl_normalize_enable_cb.clicked.connect(self._onJXLNormalizeClicked)
         self.smallest_lossless_webp_cb.toggled.connect(self._onSmLBitDepthChanged)
         self.png_opt_inplace_cb.toggled.connect(self._updateOutputStates)
+        self.lossless_cb.toggled.connect(self._updatePngLevelVisibility)
+        self.lossless_cb.toggled.connect(self._updateHeightLimit)
+        self.sf_png_lossless_cb.toggled.connect(self._updateSfQualityStates)
+        self.sf_jxl_lossless_cb.toggled.connect(self._updateSfQualityStates)
+        self.sf_webp_lossless_cb.toggled.connect(self._updateSfQualityStates)
 
     def _setToolTipsStatic(self):
         """Sets tooltips at once at startup."""
@@ -302,6 +344,7 @@ class OutputTab(QWidget):
             case "PNG":
                 setToolTip("quality_png", self.quality_sl, self.quality_sb)
                 setToolTip("lossless_png", self.lossless_cb)
+                setToolTip("png_lossless_level", self.effort_sb)
             case "Lossless JPEG Transcoding":
                 setToolTip("effort_jpeg_recomp", self.effort_sb)
             case "Same Format":
@@ -343,6 +386,12 @@ class OutputTab(QWidget):
                 empty = False
         return empty
 
+    def _getPngLevel(self) -> int:
+        """Oxipng level for the PNG format. Same Format's PNG route keeps the default level, because its effort is JPEG XL's."""
+        if self.format_cmb.currentText() == "PNG":
+            return self.effort_sb.value()
+        return DEFAULT_OXIPNG_LEVEL
+
     def getSettings(self):
         settings = {
             "format": self.format_cmb.currentText(),
@@ -378,6 +427,7 @@ class OutputTab(QWidget):
                 ext: self.sf_jpeg_route_cmb.currentText() for ext in JPEG_ALIASES
             },
             "same_format_settings": self._getSameFormatSettings(),
+            "png_level": self._getPngLevel(),
             "png_opt_inplace": (
                 self.format_cmb.currentText() == "PNG Optimization" and
                 self.png_opt_inplace_cb.isChecked()
@@ -450,6 +500,9 @@ class OutputTab(QWidget):
         elif cur_format == "WebP":
             self.effort_sb.setRange(0, 6)
             self.effort_l.setText("Method")
+        elif cur_format == "PNG":
+            self.effort_sb.setRange(0, MAX_OXIPNG_LEVEL)
+            self.effort_l.setText("Level")
         elif cur_format == "PNG Optimization":
             self.effort_sb.setRange(0, 9)
             self.effort_l.setText("Level")
@@ -467,6 +520,9 @@ class OutputTab(QWidget):
         self._onEffortToggled()  # It's very important to update int_effort_cb to avoid issues when changing formats while it's enabled
         self._updateOutputStates()
         self._loadFormatVars()
+        self._updatePngLevelVisibility()
+        self._updateSfQualityStates()
+        self._updateHeightLimit()
         self._setToolTipsDynamic()
 
     def _onEffortToggled(self):
@@ -480,6 +536,23 @@ class OutputTab(QWidget):
         self.wm.setEnabledByTag("quality_all", not lossless_checked)
         self.wm.setEnabledByTag("jxl_losssy_modular", not lossless_checked)        
 
+    def _updatePngLevelVisibility(self) -> None:
+        """The Level row only applies to lossless PNG (Oxipng). Other formats are handled by the "effort" tag."""
+        if self.format_cmb.currentText() != "PNG":
+            return
+        show = self.png_encoder != "Legacy (ImageMagick)" and self.lossless_cb.isChecked()
+        self.effort_l.setVisible(show)
+        self.effort_sb.setVisible(show)
+
+    def _updateSfQualityStates(self) -> None:
+        """A lossless route ignores quality, so grey that quality box out (the plain formats do the same)."""
+        for lossless_cb, quality_sb in (
+            (self.sf_png_lossless_cb, self.sf_png_q_sb),
+            (self.sf_jxl_lossless_cb, self.sf_jxl_q_sb),
+            (self.sf_webp_lossless_cb, self.sf_webp_q_sb),
+        ):
+            quality_sb.setEnabled(not lossless_cb.isChecked())
+
     def _onSfPresetChanged(self, preset: str):
         prev = self.sf_prev_preset
         self.sf_prev_preset = preset
@@ -491,6 +564,7 @@ class OutputTab(QWidget):
             self._seedAdvancedFromPreset(prev)
 
         self.wm.setVisibleByTag("sf_advanced", self.format_cmb.currentText() == "Same Format" and preset == "Custom")
+        self._updateHeightLimit()
         self._setToolTipsDynamic()
 
     def _seedAdvancedFromPreset(self, preset: str):
@@ -529,6 +603,8 @@ class OutputTab(QWidget):
             show = encoder != "Legacy (ImageMagick)"
             self.wm.setVisibleByTag("quality_all", show)
             self.wm.setVisibleByTag("lossless", show)
+        self._updatePngLevelVisibility()
+        self._updateHeightLimit()
 
     def _onJXLNormalizeToggled(self) -> None:
         self.jxl_normalize_when_cmb.setEnabled(self.jxl_normalize_enable_cb.isChecked())
@@ -616,6 +692,7 @@ class OutputTab(QWidget):
             case "PNG":
                 self.quality_sl.setValue(80)
                 self.lossless_cb.setChecked(True)
+                self.effort_sb.setValue(DEFAULT_OXIPNG_LEVEL)
             case "Same Format":
                 self.sf_preset_cmb.setCurrentIndex(0)
                 self._seedAdvancedFromPreset("Quality")
@@ -679,6 +756,7 @@ class OutputTab(QWidget):
             case "PNG":
                 self.wm.setVar("png_quality", self.quality_sl.value())
                 self.wm.setVar("png_lossless", self.lossless_cb.isChecked())
+                self.wm.setVar("png_level", self.effort_sb.value())
             case "Same Format":
                 self.wm.setVar("sf_jpeg_route", self.sf_jpeg_route_cmb.currentText())
                 self.wm.setVar("sf_png_lossless", self.sf_png_lossless_cb.isChecked())
@@ -712,6 +790,7 @@ class OutputTab(QWidget):
             case "PNG":
                 self.wm.applyVar("png_quality", "quality_sl", 80)
                 self.wm.applyVar("png_lossless", "lossless_cb", True)
+                self.wm.applyVar("png_level", "effort_sb", DEFAULT_OXIPNG_LEVEL)
             case "Same Format":
                 self.wm.applyVar("sf_png_lossless", "sf_png_lossless_cb", True)
                 self.wm.applyVar("sf_png_quality", "sf_png_q_sb", 90)

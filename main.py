@@ -30,6 +30,7 @@ from data.sounds import finished_sound
 from data.logging_manager import LoggingManager
 from data.process_manager import ProcessManager
 from ui.tabs import InputTab, AboutTab, ModifyTab, OutputTab, SettingsTab
+from ui.widgets.scroll_area import ScrollArea
 from ui.dialogs import message_box, ProgressDialog, ExceptionView
 from data.constants import FLATPAK
 
@@ -67,7 +68,10 @@ class MainWindow(QMainWindow):
         self.progress_dlg = ProgressDialog(parent=self, title="Converting...", cancelable=True)
 
         self.tabs.addTab(self.input_tab, "Input")
-        self.tabs.addTab(self.output_tab, "Output")
+        # The Output tab scrolls instead of being squeezed when its content is taller than the window (Same Format's Custom rows).
+        self.output_scroll = ScrollArea()
+        self.output_scroll.setWidget(self.output_tab)
+        self.tabs.addTab(self.output_scroll, "Output")
         self.tabs.addTab(self.modify_tab, "Modify")
         self.tabs.addTab(self.settings_tab, "Settings")
         self.tabs.addTab(self.about_tab, "About")
@@ -76,7 +80,7 @@ class MainWindow(QMainWindow):
 
         MAX_WIDTH = 825
         MAX_HEIGHT = 320
-        self.output_tab.setMaximumSize(MAX_WIDTH, MAX_HEIGHT)
+        self.output_tab.setMaximumWidth(MAX_WIDTH)    # Height follows the content, see OutputTab._updateHeightLimit
         self.modify_tab.setMaximumSize(MAX_WIDTH, MAX_HEIGHT)
 
     def setupSignals(self) -> None:

@@ -517,6 +517,18 @@ def test_convert_args_png_oxipng(worker_convert_patches):
     assert post_call[2] == worker.item_abs_path
     mocks["runBinary"].assert_not_called()
 
+def test_convert_args_png_oxipng_level(worker_convert_patches):
+    worker, mocks = worker_convert_patches
+    worker.settings["png_encoder"] = "Oxipng"
+    worker.params["lossless"] = True
+    worker.params["png_level"] = 8
+    worker.output = "final/path/img.png"
+
+    worker.convert()
+
+    post_call = mocks["runPNGPostProcessor"].call_args[0]
+    assert post_call[1] == ["-o", "6", "--fast", "--zopfli", "--zi", "100", "--ziwi", "15", "-t", "4", "--out", "final/path/img.png"]
+
 def test_convert_args_png_pngquant(worker_convert_patches):
     worker, mocks = worker_convert_patches
     worker.settings["png_encoder"] = "Oxipng"

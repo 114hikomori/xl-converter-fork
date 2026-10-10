@@ -4,10 +4,15 @@
 
 - Add pngquant as the lossy PNG encoder and oxipng as the default lossless PNG post-processor ("PNG Encoder" setting; "Legacy (ImageMagick)" keeps the original behavior).
 - Add quality and lossless controls for the PNG format.
+- Add an optimization level (0-9) for lossless PNG: low levels are fastest, high levels give smaller files, and 7-9 (Zopfli) are much slower.
 - Add "Same Format" mode - re-encodes each file with the pipeline assigned to its extension, with a configurable JPEG route.
 - Add "Same Format" presets (Quality / Balanced / Small) that set per-format quality and lossless values, with a Custom mode for per-format control and tooltips explaining the supported formats and each preset's settings.
 - Add HEIC/HEIF input support (decoded via the bundled ImageMagick's libheif; multipage/burst files are rejected with a clear error).
 - Show a warning listing skipped files when unsupported formats are dropped or added.
+
+### Changed
+
+- Update the bundled oxipng to 10.2.1.
 
 ### Fixed
 
@@ -22,6 +27,8 @@
 - Fix click-to-jump on sliders computing wrong values for non-zero minimums, and drag-to-scroll in the settings area never reaching position 0.
 - Fix Shift+Home/Shift+End in the file list corrupting the anchor for later shift-selections.
 - Fix the Output tab showing the wrong JPEG chroma-subsampling control after an encoder change, and "Reset to Defaults" leaving PNG Lossless unchecked.
+- Fix the Same Format controls in the Output tab not lining up (the quality boxes sat at different positions in the custom rows), and quality staying editable while Lossless is checked.
+- Fix the Same Format custom rows overlapping in the Output tab: the tab's height cap and a fixed row minimum squeezed the Format group. The Output tab now scrolls when its content is taller than the window (as the Settings tab does), and the Format group keeps its full height.
 
 ## 1.3.0 - 2026-09-06
 
