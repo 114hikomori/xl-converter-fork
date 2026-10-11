@@ -5,6 +5,7 @@
 - Add pngquant as the lossy PNG encoder and oxipng as the default lossless PNG post-processor ("PNG Encoder" setting; "Legacy (ImageMagick)" keeps the original behavior).
 - Add quality and lossless controls for the PNG format.
 - Add an optimization level (0-9) for lossless PNG: low levels are fastest, high levels give smaller files, and 7-9 (Zopfli) are much slower.
+- Files whose path or name is too long for their converter are not converted. A warning lists them with the reason and suggests shortening the name or moving the files.
 - Add "Same Format" mode - re-encodes each file with the pipeline assigned to its extension, with a configurable JPEG route.
 - Add "Same Format" presets (Quality / Balanced / Small) that set per-format quality and lossless values, with a Custom mode for per-format control and tooltips explaining the supported formats and each preset's settings.
 - Add HEIC/HEIF input support (decoded via the bundled ImageMagick's libheif; multipage/burst files are rejected with a clear error).
@@ -13,6 +14,7 @@
 ### Changed
 
 - Update the bundled oxipng to 10.2.1.
+- The progress line counts converted files and failures ("Converted X out of Y (N failed)"), and a summary appears when a batch finishes with failures.
 
 ### Fixed
 
@@ -28,6 +30,8 @@
 - Fix Shift+Home/Shift+End in the file list corrupting the anchor for later shift-selections.
 - Fix the Output tab showing the wrong JPEG chroma-subsampling control after an encoder change, and "Reset to Defaults" leaving PNG Lossless unchecked.
 - Fix the Same Format controls in the Output tab not lining up (the quality boxes sat at different positions in the custom rows), and quality staying editable while Lossless is checked.
+- Fix "Delete Original" with an in-place Replace: the original is no longer sent to the trash before the converted file is in place; it is moved aside and restored if placing the new file fails. A skipped "Smallest Lossless" conversion no longer deletes its original.
+- Fix Replace: the previous output file is kept until the new file is in place, and is put back if placing the new file fails.
 - Fix the Same Format custom rows overlapping in the Output tab: the tab's height cap and a fixed row minimum squeezed the Format group. The Output tab now scrolls when its content is taller than the window (as the Settings tab does), and the Format group keeps its full height.
 
 ## 1.3.0 - 2026-09-06

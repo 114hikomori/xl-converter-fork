@@ -68,11 +68,13 @@ class Controller(QObject):
         self.finish_emitted = False     # debounce
 
         # Signals
+        self.failed_count = 0
         self.worker_signals = WorkerSignals()
         self.worker_signals.started.connect(self.workerStarted)
         self.worker_signals.completed.connect(self.workerCompleted)
         self.worker_signals.canceled.connect(self.workerCanceled)
         self.worker_signals.exception.connect(self.exception)
+        self.worker_signals.exception.connect(self.countFailure)
         self.time_left.update_time_left.connect(self.update_progress_line2)
 
         # Misc.
@@ -175,6 +177,7 @@ class Controller(QObject):
 
     def parseData(self, order: str, input_tab_items) -> None:
         """Prepares data for startProcessing(...)"""
+        self.failed_count = 0
         self.items.clear()
         self.items.parseData(order, *input_tab_items)
 
@@ -239,6 +242,13 @@ class Controller(QObject):
         if self.start_time is not None:
             logging.info(f"Processing took {round(time.time() - self.start_time, 2)} seconds.")
 
+    @Slot(str, str, str)
+    def countFailure(self, id_str: str, msg: str, path: str) -> None:
+        self.failed_count += 1
+
+    def getFailedItemCount(self) -> int:
+        return self.failed_count
+
     def getItemCount(self) -> int:
         return self.items.getItemCount()
    
@@ -261,7 +271,9 @@ class Controller(QObject):
             self.time_left.addCompletedItem()
         else:
             self.time_left.addSkippedItem()
-        self.update_progress_line1.emit(f"Converted {self.items.getCompletedItemCount()} out of {self.items.getItemCount()} images")
+        converted = self.items.getCompletedItemCount() - self.failed_count
+        failed_note = f" ({self.failed_count} failed)" if self.failed_count else ""
+        self.update_progress_line1.emit(f"Converted {converted} out of {self.items.getItemCount()} images{failed_note}")
         self.update_progress_value.emit(self.items.getCompletedItemCount())
 
         if self.items.getCompletedItemCount() >= self.items.getItemCount() or task_status.wasCanceled():

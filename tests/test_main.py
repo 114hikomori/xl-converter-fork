@@ -115,7 +115,7 @@ def main_window_patched(main_window):
         "input_tab_file_view_topLevelItemCount": patch.object(main_window.input_tab.file_view, "topLevelItemCount", return_value=10),
         "controller_parseData": patch.object(main_window.controller, "parseData"),
         "controller_checkProcessingRequirements": patch.object(main_window.controller, "checkProcessingRequirements", return_value=CheckStatus()),
-        "input_tab_getItems": patch.object(main_window.input_tab, "getItems", return_value=["item_0", "item_1"]),
+        "input_tab_getItems": patch.object(main_window.input_tab, "getItems", return_value=[("D:\\src\\item_0.png", "D:\\src"), ("D:\\src\\item_1.png", "D:\\src")]),
         "message_box_info": patch("ui.tabs.output_tab.message_box.info"),
         "output_tab_getUsedThreadCount": patch.object(main_window.output_tab, "getUsedThreadCount"),
     }    
@@ -335,3 +335,36 @@ def test_moveEvent(main_window):
     main_window.moveEvent(QMoveEvent(QPoint(0,0), QPoint(0,1)))
 
     assert moved_spy.count() == 1
+
+
+def test_convert_blocks_files_that_are_too_long(main_window_patched):
+    from core.path_limits import Problem
+    main_window, mocks, *_ = main_window_patched
+    items = [("D:\\src\\item_0.png", "D:\\src"), ("D:\\src\\item_1.png", "D:\\src")]
+    mocks["input_tab_getItems"].return_value = items
+    problems = [Problem(index=1, path=items[1][0], reason="source path is 260 characters")]
+
+    with patch("main.path_limits.findProblems", return_value=problems), \
+            patch("main.message_box.info") as info, \
+            patch.object(main_window.controller, "startProcessing") as start:
+        main_window.convert()
+
+    info.assert_called_once()
+    mocks["controller_parseData"].assert_called_with(mocks["settings_tab_getSettings"].return_value["processing_order"], [items[0]])
+    start.assert_called_once()
+
+
+def test_convert_does_not_start_when_every_file_is_blocked(main_window_patched):
+    from core.path_limits import Problem
+    main_window, mocks, *_ = main_window_patched
+    items = [("D:\\src\\item_0.png", "D:\\src")]
+    mocks["input_tab_getItems"].return_value = items
+    problems = [Problem(index=0, path=items[0][0], reason="source path is 260 characters")]
+
+    with patch("main.path_limits.findProblems", return_value=problems), \
+            patch("main.message_box.info") as info, \
+            patch.object(main_window.controller, "startProcessing") as start:
+        main_window.convert()
+
+    info.assert_called_once()
+    start.assert_not_called()

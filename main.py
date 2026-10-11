@@ -21,6 +21,7 @@ from PySide6.QtGui import (
 )
 
 from core.controller import Controller
+from core import path_limits
 from core.utils import clip
 from data.constants import ICON_SVG
 import data.font_loader as font_loader
@@ -126,6 +127,15 @@ class MainWindow(QMainWindow):
         if settings["play_sound_on_finish"]:
             finished_sound.play(volume=settings["play_sound_on_finish_vol"])
 
+        failed = self.controller.getFailedItemCount()
+        if failed and not task_status.wasCanceled():
+            total = self.controller.getItemCount()
+            message_box.info(
+                self,
+                "Conversion finished with errors",
+                f"{total - failed} of {total} file(s) converted. {failed} failed.\n\nThe error list shows the reason for each file.",
+            )
+
         if not self.exception_view.isEmpty() and not task_status.wasCanceled():
             self.exception_view.resizeToContent()
             self.exception_view.show()
@@ -156,6 +166,27 @@ class MainWindow(QMainWindow):
         if not check_status.allowed_to_proceed:
             return
         
+        # Files whose path or name is too long for their converter are blocked: they are not converted, and the user is warned.
+        items = self.input_tab.getItems()
+        merged_settings = {**settings_tab_settings, **modify_tab_settings, **output_tab_settings}
+        problems = path_limits.findProblems(items, merged_settings)
+        if problems:
+            lines = [f"{p.path}\n    {p.reason}" for p in problems[:50]]
+            if len(problems) > 50:
+                lines.append(f"...and {len(problems) - 50} more.")
+            message_box.info(
+                self,
+                "Files blocked: path or name too long",
+                f"{len(problems)} of {len(items)} file(s) will NOT be converted, because the path or name is too long for the converter.\n\n"
+                "Shorten the file name, or move the files (or the output folder) to a shorter path, then convert again.",
+                "\n".join(lines),
+            )
+            blocked = {p.index for p in problems}
+            items = [item for index, item in enumerate(items) if index not in blocked]
+            if not items:
+                return
+            self.controller.parseData(settings_tab_settings["processing_order"], items)
+
         self.exception_view.reset()
         self.settings_tab.saveState(settings_tab_settings)
         self.output_tab.saveState(output_tab_settings)
