@@ -787,8 +787,29 @@ def test_finishConversion_replace(finishConversion_patches):
 
     worker.finishConversion()
 
-    mocks["removeFile"].assert_called_once_with("final/path/img.jpg")
-    mocks["rename"].assert_called_once_with("temp/path/img.jpg", "final/path/img.jpg")
+    # The previous file is moved aside, the new one takes its place, and only then is the previous one removed.
+    moved_aside = mocks["rename"].call_args_list[0].args[1]
+    assert mocks["rename"].call_args_list == [
+        call("final/path/img.jpg", moved_aside),
+        call("temp/path/img.jpg", "final/path/img.jpg"),
+    ]
+    mocks["removeFile"].assert_called_once_with(moved_aside)
+
+def test_finishConversion_replace_keeps_previous_file_when_rename_fails(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    worker.params["if_file_exists"] = "Replace"
+    # 1: previous file moved aside, 2: new file placed (fails), 3: previous file put back
+    mocks["rename"].side_effect = [None, OSError("disk full"), None]
+
+    with pytest.raises(FileException):
+        worker.finishConversion()
+
+    mocks["removeFile"].assert_not_called()
+    moved_aside = mocks["rename"].call_args_list[0].args[1]
+    assert mocks["rename"].call_args_list[2] == call(moved_aside, "final/path/img.jpg")
+    assert worker.replaced_backup is None
 
 @pytest.mark.parametrize("delete_original_mode, delete_method ", (
     ("To Trash", "send2trash"),
@@ -806,7 +827,11 @@ def test_finishConversion_replace_edge_case_delete_original(delete_original_mode
 
     worker.finishConversion()
 
-    mocks[delete_method].assert_called_once_with("final/path/img.jpg")
+    # The original is only moved aside here; it is deleted once the converted file is in place.
+    mocks[delete_method].assert_not_called()
+    assert worker.original_backup is not None
+    worker.postConversionRoutines()
+    mocks[delete_method].assert_called_once_with(worker.original_backup)
 
 def test_finishConversion_replace_png_opt_inplace(finishConversion_patches):
     worker, mocks = finishConversion_patches
@@ -832,11 +857,12 @@ def test_finishConversion_replace_png_opt_inplace(finishConversion_patches):
 
     assert worker.final_output == "final/path/img.jpg"
     mocks["getUniqueFilePath"].assert_not_called()
-    mocks["removeFile"].assert_called_once_with("final/path/img.jpg")
-    mocks["rename"].assert_called_once_with(
-        "temp/path/img.jpg",
-        "final/path/img.jpg",
-    )
+    moved_aside = mocks["rename"].call_args_list[0].args[1]
+    assert mocks["rename"].call_args_list == [
+        call("final/path/img.jpg", moved_aside),
+        call("temp/path/img.jpg", "final/path/img.jpg"),
+    ]
+    mocks["removeFile"].assert_called_once_with(moved_aside)
     mocks["copyfile"].assert_not_called()
 
 @pytest.mark.parametrize("file_format, getsize_side_effect, copy_if_larger_enabled, expected_to_run", [
@@ -1656,3 +1682,60 @@ def test_PNGOptimization_canceled(PNGOptimization_patches, worker):
         worker.PNGOptimization()
 
     PNGOptimization_patches["isfile"].assert_not_called()  # The code after runOxipng not reached
+
+
+def test_finishConversion_in_place_rename_failure_keeps_original(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    worker.params["if_file_exists"] = "Replace"
+    worker.params["custom_output_dir"] = False
+    worker.params["delete_original"] = True
+    worker.params["delete_original_mode"] = "To Trash"
+    mocks["isSamePath"].return_value = True
+    # 1: original moved aside, 2: converted file placed (fails), 3: original put back
+    mocks["rename"].side_effect = [None, OSError("disk full"), None]
+
+    with pytest.raises(FileException):
+        worker.finishConversion()
+
+    mocks["send2trash"].assert_not_called()
+    mocks["removeFile"].assert_not_called()
+    assert mocks["rename"].call_count == 3
+    moved_aside = mocks["rename"].call_args_list[0].args[1]
+    assert mocks["rename"].call_args_list[2] == call(moved_aside, "final/path/img.jpg")
+    assert worker.original_backup is None
+
+def test_postConversionRoutines_skipped_keeps_original(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.skipped = True
+    worker.org_item_abs_path = "org/img.png"
+    worker.final_output = "final/img.png"
+    worker.params["delete_original"] = True
+    worker.params["delete_original_mode"] = "To Trash"
+    mocks["isSamePath"].return_value = False
+    mocks["isfile"].side_effect = None
+    mocks["isfile"].return_value = True
+
+    worker.postConversionRoutines()
+
+    mocks["send2trash"].assert_not_called()
+    mocks["removeFile"].assert_not_called()
+
+def test_finishConversion_missing_output_never_deletes_original(finishConversion_patches):
+    worker, mocks = finishConversion_patches
+    worker.output = "temp/path/img.jpg"
+    worker.final_output = "final/path/img.jpg"
+    worker.params["if_file_exists"] = "Replace"
+    worker.params["custom_output_dir"] = False
+    worker.params["delete_original"] = True
+    worker.params["delete_original_mode"] = "To Trash"
+    mocks["isSamePath"].return_value = True
+    mocks["isfile"].side_effect = None
+    mocks["isfile"].return_value = False
+
+    with pytest.raises(FileException):
+        worker.finishConversion()
+
+    mocks["send2trash"].assert_not_called()
+    mocks["removeFile"].assert_not_called()

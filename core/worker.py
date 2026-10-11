@@ -90,6 +90,8 @@ class Worker(QRunnable):
         # Flags
         self.skip = False
         self.skipped = False
+        self.original_backup = None   # Original moved aside by an in-place Replace; deleted only after success
+        self.replaced_backup = None   # Previous output moved aside by a Replace; removed once the new file is in place
         self.lossless_jpeg = False
         self.png_lossy = False   # set True only by the pngquant (lossy) PNG pipeline
         self.reconstruction_data_found = False
@@ -503,6 +505,14 @@ class Worker(QRunnable):
             except KeyError as e:
                 self.logException("E2", f"ExifTool mode not mapped. {e}")
 
+    def _uniqueBackupPath(self, path: str) -> str:
+        """Returns a free sibling path to move a file aside to, e.g. img.jpg -> img.xlc-backup-1a2b3c4d.jpg."""
+        base, ext = os.path.splitext(path)
+        while True:
+            candidate = f"{base}.xlc-backup-{os.urandom(4).hex()}{ext}"
+            if not os.path.exists(candidate):
+                return candidate
+
     def finishConversion(self):
         if self.proxy.proxyExists():
             try:
@@ -545,16 +555,33 @@ class Worker(QRunnable):
                             self.params["delete_original"] and
                             (os.path.isfile(self.final_output) and isSamePath(self.org_item_abs_path, self.final_output))
                         ):
-                            if self.params["delete_original_mode"] == "To Trash":
-                                send2trash(self.final_output)
-                            elif self.params["delete_original_mode"] == "Permanently":
-                                removeFile(self.final_output)
+                            # Move the original aside instead of deleting it. The converted file takes its place, and
+                            # the original is deleted only after that succeeded (see postConversionRoutines).
+                            self.original_backup = self._uniqueBackupPath(self.final_output)
+                            os.rename(self.final_output, self.original_backup)
                         else:
-                            removeFile(self.final_output)
+                            # Keep the previous file until the new one is in place; it is removed after the rename below.
+                            if os.path.isfile(self.final_output):
+                                self.replaced_backup = self._uniqueBackupPath(self.final_output)
+                                os.rename(self.final_output, self.replaced_backup)
                     elif mode == "Rename" or mode == "Skip":
                         self.final_output = getUniqueFilePath(self.output_dir, self.item_name, self.output_ext)
                     
-                    os.rename(self.output, self.final_output)
+                    try:
+                        os.rename(self.output, self.final_output)
+                    except OSError:
+                        for backup in (self.original_backup, self.replaced_backup):   # Put the previous file back before failing.
+                            if backup is not None:
+                                os.rename(backup, self.final_output)
+                        self.original_backup = None
+                        self.replaced_backup = None
+                        raise
+                    if self.replaced_backup is not None:
+                        try:
+                            removeFile(self.replaced_backup)   # The new file is in place, so the previous one can go.
+                        except OSError as err:
+                            raise FileException("F4", f"Converted, but failed to remove the previous file. {err}")
+                        self.replaced_backup = None
 
                 # Copy original
                 # PNG is excluded only while it runs a lossless pipeline (Legacy
@@ -584,8 +611,19 @@ class Worker(QRunnable):
         if not os.path.isfile(self.final_output):    # Checking if renaming was successful
             raise FileException("P2", "Output not found.")
 
+        # The original moved aside by an in-place Replace: delete it now that the converted file is in place.
+        if self.original_backup is not None and not self.skipped:
+            try:
+                if self.params["delete_original_mode"] == "To Trash":
+                    send2trash(self.original_backup)
+                elif self.params["delete_original_mode"] == "Permanently":
+                    removeFile(self.original_backup)
+            except OSError as err:
+                raise FileException("P1", f"Failed to delete original file. {err}")
+
         # Delete original
         if (
+            not self.skipped and
             (
                 not self.settings["keep_if_larger"] or
                 os.path.getsize(self.org_item_abs_path) > os.path.getsize(self.final_output)
